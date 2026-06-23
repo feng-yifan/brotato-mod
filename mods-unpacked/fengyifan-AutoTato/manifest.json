@@ -1,20 +1,20 @@
 {
     "name": "AutoTato",
     "namespace": "fengyifan",
-    "version_number": "0.1.0",
-    "description": "Automation and QoL helpers for Brotato.",
-    "website_url": "https://github.com/fengyifan/autotato",
+    "version_number": "0.2.0",
+    "description": "Automation and QoL helpers for Brotato. (P0 reboot: clean data layer.)",
+    "website_url": "https://github.com/fengyifan/brotato-mod",
     "dependencies": [],
     "extra": {
         "godot": {
             "authors": ["fengyifan"],
             "tags": ["Utilities", "GUI"],
-            "description_rich": "",
+            "description_rich": "AutoTato is being rebuilt from scratch. This is the P0 build: only the data layer (effect parser, item/weapon helpers, danger weighting) is wired up. Runtime decisions are not yet active.",
             "optional_dependencies": [],
             "load_before": [],
             "incompatibilities": [],
             "compatible_mod_loader_version": ["6.3.0"],
-            "compatible_game_version": ["1.1.15.0"],
+            "compatible_game_version": ["1.1.15.4"],
             "config_schema": {}
         }
     }
