@@ -1,0 +1,44 @@
+# ============================================================================
+# AutoTato — Brotato Mod 开发项目 .gitignore
+# ============================================================================
+#
+# 🚨 重要：本项目根目录包含 Brotato vanilla 反编译代码。
+# 根据 Brotato 官方 modding 指南要求，vanilla 代码不得公开分享/上传公开仓库。
+#
+# 因此本 .gitignore 采用 "白名单" 策略：默认忽略所有内容，仅显式放行
+# 我们自己编写的 mod 源码（mods-unpacked/fengyifan-*/）和项目级文档。
+#
+# 如果将仓库设为公开（public GitHub），请反复确认 git status 不包含
+# 任何 vanilla 文件（main.gd、singletons/、weapons/、items/ 等）。
+# ============================================================================
+
+# 第 1 步：默认忽略一切
+/*
+
+# 第 2 步：放行我们自己的 mod 源码与文档
+!/mods-unpacked/
+!/.gitignore
+!/.gitattributes
+!/CLAUDE.md
+!/README.md
+!/docs/
+!/scripts/
+
+# 第 3 步：在已放行的目录内，二次过滤
+# （mods-unpacked 内的 mod 文件夹要全部纳入版本管理）
+mods-unpacked/*/translations/.import/
+mods-unpacked/*/resources/.import/
+
+# Godot 编辑器临时文件
+.godot/
+.import/
+*.tmp
+*.tmp.gd
+log.txt
+*.translation
+
+# 操作系统临时文件
+.DS_Store
+Thumbs.db
+*.swp
+*~

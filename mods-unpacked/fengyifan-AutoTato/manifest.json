@@ -1,0 +1,21 @@
+{
+    "name": "AutoTato",
+    "namespace": "fengyifan",
+    "version_number": "0.1.0",
+    "description": "Automation and QoL helpers for Brotato.",
+    "website_url": "https://github.com/fengyifan/autotato",
+    "dependencies": [],
+    "extra": {
+        "godot": {
+            "authors": ["fengyifan"],
+            "tags": ["Utilities", "GUI"],
+            "description_rich": "",
+            "optional_dependencies": [],
+            "load_before": [],
+            "incompatibilities": [],
+            "compatible_mod_loader_version": ["6.3.0"],
+            "compatible_game_version": ["1.1.15.0"],
+            "config_schema": {}
+        }
+    }
+}
