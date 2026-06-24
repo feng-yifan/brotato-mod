@@ -19,10 +19,11 @@ extends Node
 #   - _ready() 里做需要场景树就绪后的初始化（如查找节点、连接信号）
 #   - 所有日志走 ModLoaderLog，调用时附带本 mod 的唯一 LOG_NAME 作为来源
 #
-# 当前阶段：P3.5 — 数据层（P0）+ 决策器层（P1）+ Bridge（P2）+ 商店 hook（P3）+ 升级 hook（P3.5）。
-#   Script Extension 已挂到 vanilla base_shop 与 upgrades_ui, 玩家进商店/升级时 hook 触发决策器。
-#   默认无 item_rules, 全部物品/升级落 MANUAL/NO_PICK → 行为等同 vanilla; 配 rule 后才自动化。
-#   箱子 hook 留 P3.6; UI 配置面板留 P5。
+# 当前阶段：P3.6 — 数据层（P0）+ 决策器层（P1）+ Bridge（P2）+ 商店 hook（P3）+ 升级 hook（P3.5）+ 箱子 hook（P3.6）。
+#   Script Extension 已挂到 vanilla base_shop 与 upgrades_ui。后者通过 _items_container.visible
+#   分支同时处理升级 4 选 1 (P3.5 decide_upgrade) 与箱子单物品 (P3.6 decide_chest_item)。
+#   默认无 item_rules + upgrade_automation_enabled=false → 行为等同 vanilla; 配 rule 后才自动化。
+#   UI 配置面板留 P5。
 # ============================================================================
 
 # Mod ID 拆出来做常量，方便构造资源路径与日志归属
@@ -135,7 +136,7 @@ func _init() -> void:
 # _ready() 在节点被加到场景树后触发（vanilla 场景已经存在）
 # 适合做：查找现有节点、连接信号、注入 UI 控件
 func _ready() -> void:
-	ModLoaderLog.info("AutoTato 已加载（P0 + P1 + P2 + P3 + P3.5 Hook）", LOG_NAME)
+	ModLoaderLog.info("AutoTato 已加载（P0 + P1 + P2 + P3 + P3.5 + P3.6 Hook）", LOG_NAME)
 
 	# 开发期烟雾测试：常量开关 + 环境变量 双触发
 	# 用 deferred 避免在 _ready 链上做长 IO，让其他 mod 先加载完
