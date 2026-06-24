@@ -35,8 +35,8 @@ extends Reference
 #   9.  lockable + lock_until_cursed 规则 -> LOCKED
 #   10. 多 slot 的 slot_index 保留顺序
 #
-# 用例间状态隔离: 每个 _test_* 内独立 Bridge.new() (Reference 引用计数自动释放).
-# 用例 1/2 的"全局注册"维度走 Bridge.get_global(), 其余全部 Bridge.new(),
+# 用例间状态隔离: 每个 _test_* 内独立 Bridge.new_pristine() (Reference 引用计数自动释放).
+# 用例 1/2 的"全局注册"维度走 Bridge.get_global(), 其余全部 Bridge.new_pristine(),
 # 防止污染或依赖 mod_main 的注册时序.
 # ============================================================================
 
@@ -145,7 +145,7 @@ func _test_3_has_process_shop_method() -> void:
 func _test_4_null_base_shop_returns_empty() -> void:
 	_section("[4] null base_shop -> 返回 []")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var r = b.process_shop(null, 0)
 	_log("  r=%s" % str(r))
 	_assert(r is Array, "返回值应为 Array, 实得 %s" % typeof(r))
@@ -160,7 +160,7 @@ func _test_4_null_base_shop_returns_empty() -> void:
 func _test_5_no_shop_items_returns_empty() -> void:
 	_section("[5] base_shop 无 _shop_items -> 返回 []")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	# 纯 Reference 没有 _shop_items, Object.get("_shop_items") -> null
 	var mock = Reference.new()
 	var r = b.process_shop(mock, 0)
@@ -182,7 +182,7 @@ func _test_5_no_shop_items_returns_empty() -> void:
 func _test_6_mock_4_slots_no_rule_all_manual() -> void:
 	_section("[6] 4 slot 无规则 -> 全 MANUAL")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var slots: Array = []
 	for i in 4:
 		slots.append([_make_mock_item("mock_no_rule_%d" % i), 10])
@@ -211,7 +211,7 @@ func _test_6_mock_4_slots_no_rule_all_manual() -> void:
 func _test_7_mock_4_slots_reject_rule_all_skipped() -> void:
 	_section("[7] 4 slot reject 规则 -> 全 SKIPPED")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var slots: Array = []
 	for i in 4:
 		var iid: String = "mock_reject_%d" % i
@@ -249,7 +249,7 @@ func _test_7_mock_4_slots_reject_rule_all_skipped() -> void:
 func _test_8_zero_gold_all_skipped() -> void:
 	_section("[8] gold=0 + 全 get 规则 -> 全 SKIPPED")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var slots: Array = []
 	for i in 4:
 		var iid: String = "mock_cum_%d" % i
@@ -281,7 +281,7 @@ func _test_8_zero_gold_all_skipped() -> void:
 func _test_9_lockable_lock_until_cursed() -> void:
 	_section("[9] lockable + lock_until_cursed -> LOCKED")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var item: Dictionary = _make_mock_item("mock_lockable", 10, true, false)
 	var slots: Array = [[item, 10]]
 	var mock = _make_mock_base_shop(slots)
@@ -309,7 +309,7 @@ func _test_9_lockable_lock_until_cursed() -> void:
 func _test_10_slot_index_preserved() -> void:
 	_section("[10] slot_index 保留顺序 (0..3)")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var slots: Array = []
 	for i in 4:
 		var iid: String = "mock_order_%d" % i

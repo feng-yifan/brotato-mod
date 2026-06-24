@@ -76,13 +76,43 @@ const VALID_UPGRADE_CONFIG_KEYS := ["min_tier", "quality_first", "ignore_blackli
 
 var _config: Dictionary = {}
 
+# 内存模式 flag: true 时 _init 不读盘, _persist 不写盘
+# 仅供烟雾测试 / 单元测试 / 临时 Bridge 实例使用
+# 生产路径走 new() 默认走完整持久化流程; 测试路径走 new_pristine()
+var _skip_persistence: bool = false
+
+
+# ============================================================================
+# 静态工厂
+# ============================================================================
+
+# 内存版 Bridge: 跳过磁盘 IO. 用于烟雾测试与临时实例.
+# 与生产 new() 的差别:
+#   - _init 不调 ConfigManager.load_config (直接用 _load_defaults)
+#   - set/remove 后 _persist 短路 (不写盘)
+# 这样烟雾不会读到玩家真实 config 污染状态, 也不会把测试数据覆盖玩家文件.
+static func new_pristine() -> Reference:
+	var b = load("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd").new()
+	b._skip_persistence = true
+	# new() 已经走过 _init 加载了磁盘 config, 这里强制重置为纯默认
+	b._config = b._load_defaults()
+	return b
+
 
 # ============================================================================
 # 生命周期
 # ============================================================================
 
 func _init() -> void:
-	_config = _load_defaults()
+	var defaults: Dictionary = _load_defaults()
+	var loaded = AT_ConfigManager.load_config(defaults)
+	if loaded == null:
+		# ConfigManager 加载失败 (磁盘异常 / 文件损坏), 回落默认
+		_config = defaults
+		_log("Bridge 使用默认 config (load 失败或文件不存在)")
+	else:
+		_config = loaded
+		_log("Bridge 已加载 config (顶层 keys=%d)" % _config.size())
 	_log("Bridge 已初始化, version=%d, %d 个预设阈值" % [SCHEMA_VERSION, _config["thresholds"].size()])
 
 
@@ -111,6 +141,17 @@ func _load_defaults() -> Dictionary:
 			"ignore_blacklist_on_stuck": false,
 		},
 	}
+
+
+# 持久化 _config 到磁盘. 由所有 set/remove 写方法在末尾调用.
+# 失败仅 log 警告, 不抛错 (避免污染 hook 流程; 本次修改仅存内存, 下次 set 会重试)
+# 私有方法, 不暴露给 hook 层 — 持久化是 Bridge 的内部细节
+func _persist() -> void:
+	# 内存模式 (new_pristine 创建的实例) 跳过磁盘写, 防污染玩家真实 config
+	if _skip_persistence:
+		return
+	if not AT_ConfigManager.save_config(_config):
+		_log_warn("Bridge 持久化失败, 本次修改仅在内存")
 
 
 # ============================================================================
@@ -203,11 +244,13 @@ func set_item_rule(item_id: String, rule: Dictionary) -> void:
 	if not _config.has("item_rules"):
 		_config["item_rules"] = {}
 	_config["item_rules"][item_id] = rule.duplicate()
+	_persist()
 
 
 func remove_item_rule(item_id: String) -> void:
 	if _config.has("item_rules"):
 		_config["item_rules"].erase(item_id)
+	_persist()
 
 
 func set_threshold(stat_key: String, mode: String, value: int) -> void:
@@ -217,11 +260,13 @@ func set_threshold(stat_key: String, mode: String, value: int) -> void:
 	if not _config.has("thresholds"):
 		_config["thresholds"] = {}
 	_config["thresholds"][stat_key] = {"mode": mode, "value": value}
+	_persist()
 
 
 func remove_threshold(stat_key: String) -> void:
 	if _config.has("thresholds"):
 		_config["thresholds"].erase(stat_key)
+	_persist()
 
 
 func set_general(key: String, value) -> void:
@@ -231,6 +276,7 @@ func set_general(key: String, value) -> void:
 	if not _config.has("general"):
 		_config["general"] = {}
 	_config["general"][key] = value
+	_persist()
 
 
 func set_upgrade_config(key: String, value) -> void:
@@ -240,14 +286,17 @@ func set_upgrade_config(key: String, value) -> void:
 	if not _config.has("upgrade"):
 		_config["upgrade"] = {}
 	_config["upgrade"][key] = value
+	_persist()
 
 
 func set_shop_automation_enabled(val: bool) -> void:
 	_config["shop_automation_enabled"] = val
+	_persist()
 
 
 func set_upgrade_automation_enabled(val: bool) -> void:
 	_config["upgrade_automation_enabled"] = val
+	_persist()
 
 
 # ============================================================================

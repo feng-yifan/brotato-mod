@@ -35,7 +35,7 @@ extends Reference
 #   7. upgrade_automation_enabled=false -> NO_PICK
 #   8. threshold gate 联动 (mock dict 含 stat_speed effect, 不触达 upper)
 #
-# 用例间状态隔离: 每个 _test_* 内 Bridge.new() 独立实例.
+# 用例间状态隔离: 每个 _test_* 内 Bridge.new_pristine() 独立实例.
 # ============================================================================
 
 
@@ -157,7 +157,7 @@ func _test_2_hook_extends_vanilla() -> void:
 func _test_3_decide_upgrade_with_real_tres() -> void:
 	_section("[3] 真实 UpgradeData tres + 单候选 -> 返回 0")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	# 默认 upgrade_automation_enabled=false, 这里测决策器逻辑需显式开启
 	b.set_upgrade_automation_enabled(true)
 	var up = load(REAL_UPGRADE_PATH)
@@ -177,7 +177,7 @@ func _test_3_decide_upgrade_with_real_tres() -> void:
 func _test_4_decide_upgrade_empty_list() -> void:
 	_section("[4] 空 option_list -> NO_PICK")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var idx: int = b.decide_upgrade([], 0)
 	_log("  decide_upgrade([], 0) = %d" % idx)
 	_assert(idx == UpgDec.NO_PICK, "空 list 应返 NO_PICK(%d), 实得 %d" % [UpgDec.NO_PICK, idx])
@@ -192,7 +192,7 @@ func _test_4_decide_upgrade_empty_list() -> void:
 func _test_5_decide_upgrade_min_tier_filter() -> void:
 	_section("[5] min_tier=2 + quality_first=true -> 选 tier 最高 (idx=2)")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	# 默认 upgrade_automation_enabled=false, 这里测决策器逻辑需显式开启
 	b.set_upgrade_automation_enabled(true)
 	var list: Array = [
@@ -218,7 +218,7 @@ func _test_5_decide_upgrade_min_tier_filter() -> void:
 func _test_6_decide_upgrade_quality_first() -> void:
 	_section("[6] min_tier=2 + quality_first=false -> 选首个满足项 (idx=1)")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	# 默认 upgrade_automation_enabled=false, 这里测决策器逻辑需显式开启
 	b.set_upgrade_automation_enabled(true)
 	var list: Array = [
@@ -242,7 +242,7 @@ func _test_6_decide_upgrade_quality_first() -> void:
 func _test_7_decide_upgrade_no_pick_on_disabled() -> void:
 	_section("[7] upgrade_automation_enabled=false -> NO_PICK")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	b.set_upgrade_automation_enabled(false)
 	var list: Array = [
 		_make_mock_upgrade(0),
@@ -269,7 +269,7 @@ func _test_7_decide_upgrade_no_pick_on_disabled() -> void:
 func _test_8_decide_upgrade_with_threshold() -> void:
 	_section("[8] threshold gate 联动 (stat_speed effect, 玩家=0, upper=20)")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	# 默认 upgrade_automation_enabled=false, 这里测决策器逻辑需显式开启
 	b.set_upgrade_automation_enabled(true)
 	# 1 个候选: tier=1, effects=[{key:stat_speed, value:5}]

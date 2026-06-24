@@ -74,6 +74,12 @@ const PATH_P3_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/
 const PATH_HOOK_UPGRADES_UI := "ui/menus/ingame/upgrades_ui.gd"
 const PATH_P3_5_SMOKE_TEST  := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p3_5_smoke_test.gd"
 
+# ----------------------------------------------------------------------------
+# P4 ConfigManager 配置持久化层
+# ----------------------------------------------------------------------------
+const PATH_CONFIG_MANAGER   := "res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/config_manager.gd"
+const PATH_P4_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p4_smoke_test.gd"
+
 # preload 一遍所有文件，强制 Godot 在 mod 加载阶段解析它们
 # 写错路径或语法错误会在这里直接报错，不会拖到运行期
 const _PRELOAD_EFFECT_SCHEMA    := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/effect_schema.gd")
@@ -86,6 +92,8 @@ const _PRELOAD_DECISION_RESULT  := preload("res://mods-unpacked/fengyifan-AutoTa
 const _PRELOAD_THRESHOLD_GATE   := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/threshold_gate.gd")
 const _PRELOAD_ITEM_DECIDER     := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/item_decider.gd")
 const _PRELOAD_UPGRADE_DECIDER  := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/upgrade_decider.gd")
+# ConfigManager 必须在 Bridge 之前 preload, 因为 Bridge._init 引用 AT_ConfigManager
+const _PRELOAD_CONFIG_MANAGER   := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/config_manager.gd")
 const _PRELOAD_BRIDGE           := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 
 # ----------------------------------------------------------------------------
@@ -103,6 +111,7 @@ const DEV_RUN_P1_SMOKE := false
 const DEV_RUN_P2_SMOKE := false
 const DEV_RUN_P3_SMOKE := false
 const DEV_RUN_P3_5_SMOKE := false
+const DEV_RUN_P4_SMOKE := false
 
 # 各子目录路径在 _init() 里组装，避免每个 install 调用都重复写一遍前缀
 var mod_dir_path := ""
@@ -136,7 +145,7 @@ func _init() -> void:
 # _ready() 在节点被加到场景树后触发（vanilla 场景已经存在）
 # 适合做：查找现有节点、连接信号、注入 UI 控件
 func _ready() -> void:
-	ModLoaderLog.info("AutoTato 已加载（P0 + P1 + P2 + P3 + P3.5 + P3.6 Hook）", LOG_NAME)
+	ModLoaderLog.info("AutoTato 已加载（P0 + P1 + P2 + P3 + P3.5 + P3.6 Hook + P4 ConfigManager）", LOG_NAME)
 
 	# 开发期烟雾测试：常量开关 + 环境变量 双触发
 	# 用 deferred 避免在 _ready 链上做长 IO，让其他 mod 先加载完
@@ -148,6 +157,7 @@ func _ready() -> void:
 	var run_p2 := DEV_RUN_P2_SMOKE or OS.has_environment("AUTOTATO_P2_SMOKE")
 	var run_p3 := DEV_RUN_P3_SMOKE or OS.has_environment("AUTOTATO_P3_SMOKE")
 	var run_p3_5 := DEV_RUN_P3_5_SMOKE or OS.has_environment("AUTOTATO_P3_5_SMOKE")
+	var run_p4 := DEV_RUN_P4_SMOKE or OS.has_environment("AUTOTATO_P4_SMOKE")
 
 	if run_p0:
 		call_deferred("_run_smoke_test", PATH_P0_SMOKE_TEST, "P0")
@@ -159,6 +169,8 @@ func _ready() -> void:
 		call_deferred("_run_smoke_test", PATH_P3_SMOKE_TEST, "P3")
 	if run_p3_5:
 		call_deferred("_run_smoke_test", PATH_P3_5_SMOKE_TEST, "P3.5")
+	if run_p4:
+		call_deferred("_run_smoke_test", PATH_P4_SMOKE_TEST, "P4")
 
 
 # 通用烟雾脚本入口。脚本路径通过 path 传入，stage_label 仅用于日志区分

@@ -111,7 +111,7 @@ func run() -> void:
 func _test_1_default_config() -> void:
 	_section("[1] 默认 config 含 5 个预设阈值")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var ths: Dictionary = b.get_thresholds()
 	_log("  thresholds.size=%d keys=%s" % [ths.size(), str(ths.keys())])
 
@@ -134,7 +134,7 @@ func _test_1_default_config() -> void:
 func _test_2_default_thresholds_values() -> void:
 	_section("[2] 默认阈值 value 取值正确")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var ths: Dictionary = b.get_thresholds()
 
 	_assert(int(ths.get("stat_speed", {}).get("value", -1)) == 20,
@@ -155,7 +155,7 @@ func _test_2_default_thresholds_values() -> void:
 func _test_3_get_config_deep_copy() -> void:
 	_section("[3] get_config() 返回深拷贝")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var cfg1: Dictionary = b.get_config()
 	# 在 cfg1 里植入一个污染 key
 	(cfg1.get("thresholds", {}) as Dictionary)["stat_INJECTED"] = {"mode": "upper", "value": 99}
@@ -174,7 +174,7 @@ func _test_3_get_config_deep_copy() -> void:
 func _test_4_set_item_rule_persists() -> void:
 	_section("[4] set_item_rule 持久化 + get_item_rule 读回")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	b.set_item_rule("test_x", {"shop_action": "reject", "chest_action": "take"})
 	var got: Dictionary = b.get_item_rule("test_x")
 	_log("  got=%s" % str(got))
@@ -191,7 +191,7 @@ func _test_4_set_item_rule_persists() -> void:
 func _test_5_remove_item_rule() -> void:
 	_section("[5] remove_item_rule 后查询返回 {}")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	b.set_item_rule("test_x", {"shop_action": "reject"})
 	b.remove_item_rule("test_x")
 	var got: Dictionary = b.get_item_rule("test_x")
@@ -210,7 +210,7 @@ func _test_5_remove_item_rule() -> void:
 func _test_6_decide_shop_with_rule_reject() -> void:
 	_section("[6] decide_shop_item + reject 规则 -> SKIPPED")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var item := _make_mock_item("mock_reject")
 	b.set_item_rule("mock_reject", {"shop_action": "reject"})
 
@@ -231,7 +231,7 @@ func _test_6_decide_shop_with_rule_reject() -> void:
 func _test_7_decide_shop_no_rule_returns_manual() -> void:
 	_section("[7] decide_shop_item 无规则 -> MANUAL")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var item := _make_mock_item("mock_unconfigured")
 
 	var r = b.decide_shop_item(item, 100)
@@ -250,7 +250,7 @@ func _test_7_decide_shop_no_rule_returns_manual() -> void:
 func _test_8_decide_shop_disabled_returns_manual() -> void:
 	_section("[8] shop_automation_enabled=false -> 总开关短路 MANUAL")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	b.set_shop_automation_enabled(false)
 	b.set_item_rule("mock_d", {"shop_action": "reject"})
 	var item := _make_mock_item("mock_d")
@@ -273,7 +273,7 @@ func _test_8_decide_shop_disabled_returns_manual() -> void:
 func _test_9_default_thresholds_no_match_passes() -> void:
 	_section("[9] 默认阈值无 stat 相交 + 预算够 -> PURCHASED")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	var item := _make_mock_item("mock_e", 20, [])  # effects=[] 不参与阈值
 	b.set_item_rule("mock_e", {"shop_action": "get"})
 
@@ -306,7 +306,7 @@ func _test_10_threshold_override_blocks() -> void:
 		_warn_case("无法 load %s, 跳过本用例" % MEDAL_DATA_TRES)
 		return
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	# 把 Medal 涉及的默认阈值清掉, 留 stat_max_hp 单独触达
 	b.remove_threshold("stat_armor")
 	b.remove_threshold("stat_speed")
@@ -333,7 +333,7 @@ func _test_10_threshold_override_blocks() -> void:
 func _test_11_threshold_unlimited_value_preserved() -> void:
 	_section("[11] unlimited 模式 + value 字段保留")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	b.set_threshold("stat_armor", "unlimited", 999)
 	var t: Dictionary = b.get_threshold("stat_armor")
 	_log("  t=%s" % str(t))
@@ -350,7 +350,7 @@ func _test_11_threshold_unlimited_value_preserved() -> void:
 func _test_12_decide_upgrade_disabled() -> void:
 	_section("[12] upgrade_automation_enabled=false -> NO_PICK")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	b.set_upgrade_automation_enabled(false)
 	var opts: Array = [
 		_make_mock_upgrade(0),
@@ -377,7 +377,7 @@ func _test_12_decide_upgrade_disabled() -> void:
 func _test_13_decide_upgrade_min_tier() -> void:
 	_section("[13] decide_upgrade min_tier + quality_first")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	# 默认 upgrade_automation_enabled=false (避免新装玩家被强制自动选), 这里测决策器逻辑需显式开启
 	b.set_upgrade_automation_enabled(true)
 	b.set_upgrade_config("min_tier", 2)
@@ -403,7 +403,7 @@ func _test_13_decide_upgrade_min_tier() -> void:
 func _test_14_set_general_passthrough() -> void:
 	_section("[14] set_general min_gold_balance 透传到决策器")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	b.set_general("min_gold_balance", 100)
 	var item := _make_mock_item("p", 20, [])
 	b.set_item_rule("p", {"shop_action": "get"})
@@ -425,7 +425,7 @@ func _test_14_set_general_passthrough() -> void:
 func _test_15_remove_threshold_returns_empty() -> void:
 	_section("[15] remove_threshold 后 get 返回 {}")
 
-	var b = Bridge.new()
+	var b = Bridge.new_pristine()
 	b.remove_threshold("stat_armor")
 	var t: Dictionary = b.get_threshold("stat_armor")
 	_log("  t=%s (size=%d)" % [str(t), t.size()])
