@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=3 format=2]
 
 [ext_resource path="res://mods-unpacked/fengyifan-AutoTato/autotato/ui/config_panel.gd" type="Script" id=1]
 [ext_resource path="res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/general_tab.gd" type="Script" id=2]
@@ -15,49 +15,41 @@ anchor_bottom = 1.0
 color = Color( 0, 0, 0, 0.5 )
 mouse_filter = 0
 
-[node name="CenterContainer" type="CenterContainer" parent="."]
+[node name="PanelContainer" type="PanelContainer" parent="."]
 anchor_right = 1.0
 anchor_bottom = 1.0
-mouse_filter = 1
 
-[node name="PanelContainer" type="PanelContainer" parent="CenterContainer"]
-margin_left = 560.0
-margin_top = 60.0
-margin_right = 1360.0
-margin_bottom = 660.0
-rect_min_size = Vector2( 800, 600 )
-
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="PanelContainer"]
 margin_left = 20.0
 margin_top = 20.0
-margin_right = 780.0
-margin_bottom = 580.0
+margin_right = 1900.0
+margin_bottom = 1060.0
 
-[node name="HeaderHBox" type="HBoxContainer" parent="CenterContainer/PanelContainer/VBoxContainer"]
-margin_right = 760.0
+[node name="HeaderHBox" type="HBoxContainer" parent="PanelContainer/VBoxContainer"]
+margin_right = 1880.0
 margin_bottom = 40.0
 
-[node name="TitleLabel" type="Label" parent="CenterContainer/PanelContainer/VBoxContainer/HeaderHBox"]
-margin_right = 720.0
+[node name="TitleLabel" type="Label" parent="PanelContainer/VBoxContainer/HeaderHBox"]
+margin_right = 1836.0
 margin_bottom = 40.0
 size_flags_horizontal = 3
 text = "AutoTato 配置"
 valign = 1
 
-[node name="CloseButton" type="Button" parent="CenterContainer/PanelContainer/VBoxContainer/HeaderHBox"]
-margin_left = 724.0
-margin_right = 760.0
+[node name="CloseButton" type="Button" parent="PanelContainer/VBoxContainer/HeaderHBox"]
+margin_left = 1840.0
+margin_right = 1880.0
 margin_bottom = 40.0
 rect_min_size = Vector2( 40, 40 )
-text = "✕"
+text = "X"
 
-[node name="AutoTatoTabs" type="TabContainer" parent="CenterContainer/PanelContainer/VBoxContainer"]
+[node name="AutoTatoTabs" type="TabContainer" parent="PanelContainer/VBoxContainer"]
 margin_top = 44.0
-margin_right = 760.0
-margin_bottom = 524.0
+margin_right = 1880.0
+margin_bottom = 1040.0
 size_flags_vertical = 3
 
-[node name="通用" type="Control" parent="CenterContainer/PanelContainer/VBoxContainer/AutoTatoTabs"]
+[node name="通用" type="Control" parent="PanelContainer/VBoxContainer/AutoTatoTabs"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 margin_left = 4.0
@@ -66,7 +58,7 @@ margin_right = -4.0
 margin_bottom = -4.0
 script = ExtResource( 2 )
 
-[node name="PlaceholderLabel" type="Label" parent="CenterContainer/PanelContainer/VBoxContainer/AutoTatoTabs/通用"]
+[node name="PlaceholderLabel" type="Label" parent="PanelContainer/VBoxContainer/AutoTatoTabs/通用"]
 anchor_right = 1.0
 anchor_bottom = 1.0
 text = "P5.1 UI 入口已就绪.
@@ -82,21 +74,3 @@ P5.2+ 待实现:
 align = 1
 valign = 1
 autowrap = true
-
-[node name="FooterHBox" type="HBoxContainer" parent="CenterContainer/PanelContainer/VBoxContainer"]
-margin_top = 528.0
-margin_right = 760.0
-margin_bottom = 560.0
-alignment = 2
-
-[node name="CancelButton" type="Button" parent="CenterContainer/PanelContainer/VBoxContainer/FooterHBox"]
-margin_left = 590.0
-margin_right = 670.0
-margin_bottom = 32.0
-text = "取消"
-
-[node name="SaveButton" type="Button" parent="CenterContainer/PanelContainer/VBoxContainer/FooterHBox"]
-margin_left = 674.0
-margin_right = 760.0
-margin_bottom = 32.0
-text = "保存"
