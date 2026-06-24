@@ -1,0 +1,105 @@
+extends "res://ui/menus/ingame/upgrades_ui.gd"
+
+# ============================================================================
+# AutoTato — upgrades_ui Script Extension (P3.5)
+# ----------------------------------------------------------------------------
+# ModLoader v6 Script Extension, hook vanilla 升级 4 选 1 面板.
+#
+# 仅 hook 1 个方法: show_options(consumables, upgrades) -> bool
+#   父类先把 4 个 upgrade_ui.upgrade_data 填好, _player_is_choosing[i] = true
+#   返回后再跑 AutoTato 决策, 给每个正在选的 player 模拟点击.
+#
+# 与 P3 商店 hook 风格一致 (extensions/ui/menus/shop/base_shop.gd):
+#   - AT_Bridge.get_global() 取桥, has_method 防御
+#   - 不持 Bridge 引用为成员变量 (避免循环引用)
+#   - 不主动 disconnect 任何信号
+#   - 不用 Timer
+#   - 全程 Object.get() 读 vanilla 私有字段, 防字段缺失崩
+#
+# 关键: vanilla 没有 `_current_player_index` 字段, 多人 coop 是真并行 —
+#   `_player_is_choosing: [bool; 4]` 标记哪些 player 当前正在选项 (同帧同时显示).
+#   所以 hook 中需遍历 0..get_player_count(), 跳过 _player_is_choosing[i] == false 的.
+#
+# 守卫:
+#   - 跳过 crate 物品场景: pc._items_container.visible == true (P3.6 处理)
+#   - 跳过 vanilla 按钮锁: pc._button_pressed (vanilla 防双击)
+#   - 决策器返回 -1 (NO_PICK) 表示玩家手动, 不点击
+# ============================================================================
+
+const LOG_NAME := "fengyifan-AutoTato:UpgradeHook"
+
+
+# hook show_options: vanilla 每次需要展示升级 4 选 1 时调用. 返回 bool (是否有玩家正在选).
+# 签名必须严格对齐父类: 两个 Array, 返回 bool.
+func show_options(consumables_to_process: Array, upgrades_to_process: Array) -> bool:
+	var ret = .show_options(consumables_to_process, upgrades_to_process)
+	# vanilla 已经填好每个 player 的 upgrade_ui 并设置 _player_is_choosing
+	_autotato_process_upgrades()
+	return ret
+
+
+# ----------------------------------------------------------------------------
+# AutoTato 流程 (前缀 _autotato_ 防止与 vanilla 撞名)
+# ----------------------------------------------------------------------------
+
+func _autotato_process_upgrades() -> void:
+	var bridge = AT_Bridge.get_global()
+	if bridge == null:
+		return
+	if not bridge.has_method("decide_upgrade"):
+		return
+
+	# 遍历所有玩家. vanilla 多人 coop 同帧并行展示, 用 _player_is_choosing 标记.
+	var player_count: int = RunData.get_player_count()
+	for player_index in player_count:
+		# 读 vanilla 私有数组, 用 Object.get 防御
+		var choosing_arr = self.get("_player_is_choosing")
+		if choosing_arr == null:
+			return
+		if player_index >= choosing_arr.size() or not bool(choosing_arr[player_index]):
+			continue
+
+		var pc = _get_player_container(player_index)
+		if pc == null:
+			continue
+
+		# 跳过 crate 物品场景 (UpgradesUIPlayerContainer 复用给 crate, P3.6 才处理)
+		var items_container = pc.get("_items_container")
+		if items_container != null and items_container.visible:
+			_log("跳过 crate 物品场景 player=%d (P3.6 才处理)" % player_index)
+			continue
+
+		# 取 4 个 visible 的 upgrade option
+		var ui_list: Array = pc._get_upgrade_uis()
+		var options: Array = []
+		var visible_uis: Array = []
+		for ui in ui_list:
+			if ui.visible and ui.upgrade_data != null:
+				options.append(ui.upgrade_data)
+				visible_uis.append(ui)
+		if options.empty():
+			continue
+
+		# 决策
+		var idx: int = int(bridge.decide_upgrade(options, player_index))
+		_log("升级决策完成 player=%d 候选=%d 选中 idx=%d" % [player_index, options.size(), idx])
+		if idx < 0 or idx >= visible_uis.size():
+			continue  # -1 (NO_PICK) 或越界, 玩家手动
+
+		# 防 vanilla 按钮锁 (上次点击未解锁, 跳过本次)
+		var button_pressed = pc.get("_button_pressed")
+		if button_pressed != null and bool(button_pressed):
+			_log("按钮被锁 player=%d, 跳过本次自动选择" % player_index)
+			continue
+
+		# emit click signal, 走 vanilla 完整链路:
+		#   UpgradeUI.button.pressed → _on_ChooseButton_pressed → emit choose_button_pressed
+		#   → pc._on_choose_button_pressed → emit pc.choose_button_pressed
+		#   → UpgradesUI._on_choose_button_pressed → apply upgrade + _show_next_player_options
+		var target_ui = visible_uis[idx]
+		target_ui.button.emit_signal("pressed")
+
+
+func _log(msg: String) -> void:
+	if typeof(ModLoaderLog) != TYPE_NIL:
+		ModLoaderLog.info(msg, LOG_NAME)

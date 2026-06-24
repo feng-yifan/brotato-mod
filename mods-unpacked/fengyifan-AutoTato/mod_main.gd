@@ -19,10 +19,10 @@ extends Node
 #   - _ready() 里做需要场景树就绪后的初始化（如查找节点、连接信号）
 #   - 所有日志走 ModLoaderLog，调用时附带本 mod 的唯一 LOG_NAME 作为来源
 #
-# 当前阶段：P3 — 数据层（P0）+ 决策器层（P1）+ Bridge（P2）+ 商店 hook（P3）。
-#   Script Extension 已挂载到 vanilla base_shop, 玩家进商店时 hook 触发决策器。
-#   默认无 item_rules, 所有物品落 MANUAL → 行为等同 vanilla; 配 rule 后才自动化。
-#   升级 / 箱子 hook 留 P3.5/P3.6; UI 配置面板留 P5。
+# 当前阶段：P3.5 — 数据层（P0）+ 决策器层（P1）+ Bridge（P2）+ 商店 hook（P3）+ 升级 hook（P3.5）。
+#   Script Extension 已挂到 vanilla base_shop 与 upgrades_ui, 玩家进商店/升级时 hook 触发决策器。
+#   默认无 item_rules, 全部物品/升级落 MANUAL/NO_PICK → 行为等同 vanilla; 配 rule 后才自动化。
+#   箱子 hook 留 P3.6; UI 配置面板留 P5。
 # ============================================================================
 
 # Mod ID 拆出来做常量，方便构造资源路径与日志归属
@@ -67,6 +67,12 @@ const PATH_P2_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/
 const PATH_HOOK_BASE_SHOP   := "ui/menus/shop/base_shop.gd"
 const PATH_P3_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p3_smoke_test.gd"
 
+# ----------------------------------------------------------------------------
+# P3.5 Hook 层文件路径 (升级面板)
+# ----------------------------------------------------------------------------
+const PATH_HOOK_UPGRADES_UI := "ui/menus/ingame/upgrades_ui.gd"
+const PATH_P3_5_SMOKE_TEST  := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p3_5_smoke_test.gd"
+
 # preload 一遍所有文件，强制 Godot 在 mod 加载阶段解析它们
 # 写错路径或语法错误会在这里直接报错，不会拖到运行期
 const _PRELOAD_EFFECT_SCHEMA    := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/effect_schema.gd")
@@ -88,12 +94,14 @@ const _PRELOAD_BRIDGE           := preload("res://mods-unpacked/fengyifan-AutoTa
 #   P0:  AUTOTATO_SMOKE=1    ./Brotato.x86_64   (兼容旧名)
 #   P1:  AUTOTATO_P1_SMOKE=1 ./Brotato.x86_64
 #   P2:  AUTOTATO_P2_SMOKE=1 ./Brotato.x86_64
-#   P3:  AUTOTATO_P3_SMOKE=1 ./Brotato.x86_64
-# 多个开关可以叠加（同时跑 P0+P1+P2+P3 验证全栈）
+#   P3:   AUTOTATO_P3_SMOKE=1 ./Brotato.x86_64
+#   P3.5: AUTOTATO_P3_5_SMOKE=1 ./Brotato.x86_64
+# 多个开关可以叠加（同时跑 P0+P1+P2+P3+P3.5 验证全栈）
 const DEV_RUN_P0_SMOKE := false
 const DEV_RUN_P1_SMOKE := false
 const DEV_RUN_P2_SMOKE := false
 const DEV_RUN_P3_SMOKE := false
+const DEV_RUN_P3_5_SMOKE := false
 
 # 各子目录路径在 _init() 里组装，避免每个 install 调用都重复写一遍前缀
 var mod_dir_path := ""
@@ -127,7 +135,7 @@ func _init() -> void:
 # _ready() 在节点被加到场景树后触发（vanilla 场景已经存在）
 # 适合做：查找现有节点、连接信号、注入 UI 控件
 func _ready() -> void:
-	ModLoaderLog.info("AutoTato 已加载（P0 + P1 + P2 + P3 Hook）", LOG_NAME)
+	ModLoaderLog.info("AutoTato 已加载（P0 + P1 + P2 + P3 + P3.5 Hook）", LOG_NAME)
 
 	# 开发期烟雾测试：常量开关 + 环境变量 双触发
 	# 用 deferred 避免在 _ready 链上做长 IO，让其他 mod 先加载完
@@ -138,6 +146,7 @@ func _ready() -> void:
 	var run_p1 := DEV_RUN_P1_SMOKE or OS.has_environment("AUTOTATO_P1_SMOKE")
 	var run_p2 := DEV_RUN_P2_SMOKE or OS.has_environment("AUTOTATO_P2_SMOKE")
 	var run_p3 := DEV_RUN_P3_SMOKE or OS.has_environment("AUTOTATO_P3_SMOKE")
+	var run_p3_5 := DEV_RUN_P3_5_SMOKE or OS.has_environment("AUTOTATO_P3_5_SMOKE")
 
 	if run_p0:
 		call_deferred("_run_smoke_test", PATH_P0_SMOKE_TEST, "P0")
@@ -147,6 +156,8 @@ func _ready() -> void:
 		call_deferred("_run_smoke_test", PATH_P2_SMOKE_TEST, "P2")
 	if run_p3:
 		call_deferred("_run_smoke_test", PATH_P3_SMOKE_TEST, "P3")
+	if run_p3_5:
+		call_deferred("_run_smoke_test", PATH_P3_5_SMOKE_TEST, "P3.5")
 
 
 # 通用烟雾脚本入口。脚本路径通过 path 传入，stage_label 仅用于日志区分
@@ -173,6 +184,10 @@ func install_script_extensions() -> void:
 	# P3: 商店决策 hook
 	ModLoaderMod.install_script_extension(
 		extensions_dir_path.plus_file(PATH_HOOK_BASE_SHOP)
+	)
+	# P3.5: 升级面板决策 hook
+	ModLoaderMod.install_script_extension(
+		extensions_dir_path.plus_file(PATH_HOOK_UPGRADES_UI)
 	)
 
 
