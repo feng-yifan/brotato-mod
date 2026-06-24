@@ -33,6 +33,16 @@ const BUTTONS_NODE_PATH := "MarginContainer/VBoxContainer/HBoxContainer/VBoxCont
 const BUTTON_NAME := "AutoTatoConfigButton"
 
 var _config_panel: Control = null
+# CanvasLayer 包装 ConfigPanel, 用高 layer 值确保面板永远绘制在 vanilla PauseMenu 上方.
+# 不用 CanvasLayer 时, 面板挂在 root 也会被 vanilla 主场景里晚加入的 PauseMenu 覆盖
+# (PauseMenu 是 PanelContainer 不是 CanvasLayer, 按场景树添加顺序绘制).
+var _canvas_layer: CanvasLayer = null
+const PANEL_CANVAS_LAYER := 128  # vanilla 最高 layer 一般 < 100, 128 保安全
+
+# vanilla PauseMenu 节点的绝对路径 (main.tscn:930 — UI/PauseMenu).
+# 面板显示时需要把 PauseMenu._input 临时关掉, 否则 ESC/B 同时关掉两层 UI:
+# Godot 3 的 set_input_as_handled() 只阻断 _unhandled_input, 不阻断同帧其他 _input 节点.
+const PAUSE_MENU_PATH := "/root/Main/UI/PauseMenu"
 
 
 func _ready() -> void:
@@ -78,19 +88,51 @@ func _on_autotato_config_pressed() -> void:
 		if scene == null:
 			_log("无法 load config_panel.tscn: %s" % PATH_CONFIG_PANEL)
 			return
+		# 用 CanvasLayer 包装, 确保面板永远绘制在 vanilla 暂停菜单上方.
+		# PauseMenu 是 PanelContainer (普通 Control 节点树), CanvasLayer 用高 layer 值
+		# 跨越普通 Control 的 z-order; 玩家在暂停菜单按下 AutoTato 后, 面板正常显示.
+		_canvas_layer = CanvasLayer.new()
+		_canvas_layer.layer = PANEL_CANVAS_LAYER
+		_canvas_layer.pause_mode = Node.PAUSE_MODE_PROCESS
+		get_tree().get_root().add_child(_canvas_layer)
 		_config_panel = scene.instance()
 		_config_panel.pause_mode = Node.PAUSE_MODE_PROCESS
-		get_tree().get_root().add_child(_config_panel)
+		_canvas_layer.add_child(_config_panel)
 		if _config_panel.has_signal("close_requested"):
 			_config_panel.connect("close_requested", self, "_on_panel_close_requested")
 	_config_panel.show()
+	# 关闭 PauseMenu 的输入处理, 避免 ESC/B 同时关闭两层 UI.
+	# Godot 3 的 set_input_as_handled() 不能阻断同帧其他 _input, 必须从源头切断.
+	_set_pause_menu_input_enabled(false)
 	_log("ConfigPanel 已显示")
 
 
 func _on_panel_close_requested() -> void:
 	if _config_panel != null:
 		_config_panel.hide()
+	# 延迟一帧再恢复 PauseMenu 输入: 当前 ESC 事件还在分发链上, 立刻打开会让 PauseMenu
+	# 接到同一次 ESC 并执行 manage_back() 关掉暂停菜单. call_deferred 跳到下一帧.
+	call_deferred("_set_pause_menu_input_enabled", true)
 	_log("ConfigPanel 已关闭")
+
+
+# 切换 vanilla PauseMenu 的 _input 开关. PauseMenu (pause_menu.gd:32) 自身用
+# set_process_input(false/true) 控制暂停时是否监听 ui_cancel/pause; 我们借用同一开关.
+func _set_pause_menu_input_enabled(enabled: bool) -> void:
+	var pm = get_tree().get_root().get_node_or_null(_strip_root(PAUSE_MENU_PATH))
+	if pm == null:
+		# 安全兜底: 找不到就放弃, 不阻塞玩家. 真实游戏里 PauseMenu 必然存在.
+		_log("找不到 PauseMenu (%s), 跳过 input 切换" % PAUSE_MENU_PATH)
+		return
+	pm.set_process_input(enabled)
+
+
+# get_node 不接受以 "/root/" 开头的路径 (那是 get_tree().get_root() 自身),
+# 剥掉首段返回相对路径.
+func _strip_root(absolute_path: String) -> String:
+	if absolute_path.begins_with("/root/"):
+		return absolute_path.substr(6)
+	return absolute_path
 
 
 # 重建焦点链: top/bottom 闭环, 让手柄 / 方向键能命中所有可见按钮.

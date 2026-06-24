@@ -43,7 +43,10 @@ func _on_save() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# ESC / B 键关闭面板
-	if visible and event.is_action_pressed("ui_cancel"):
+	# ESC / B 键关闭面板. 用 released 而非 pressed 与 vanilla PauseMenu 对齐
+	# (pause_menu.gd:36 用 is_player_cancel_released): 这样 hook 端在面板 show
+	# 阶段 set_process_input(false) PauseMenu, release 那一刻 PauseMenu 还是禁用
+	# 状态, 不会跟着我们一起关; call_deferred 下一帧再恢复 PauseMenu input.
+	if visible and event.is_action_released("ui_cancel"):
 		emit_signal("close_requested")
 		get_tree().set_input_as_handled()
