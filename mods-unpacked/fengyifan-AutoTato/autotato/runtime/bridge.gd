@@ -3,6 +3,7 @@ class_name AT_Bridge
 
 # ============================================================================
 # AT_Bridge — P2 引入的薄适配层 (decision 层 ↔ hook 层胶水)
+# P3 扩展: 加 process_shop / _read_player_gold, 让商店 hook 一行调用即可拿到全部 slot 的决策结果
 # ----------------------------------------------------------------------------
 # 定位:
 #   Bridge 居于"无状态纯函数决策器 (P1)" 与"vanilla hook 注入 (P3 任务)"之间.
@@ -269,6 +270,108 @@ func decide_chest_item(item_data, player_index: int = 0):
 	var rule := get_item_rule(item_id)
 	var ctx := _build_item_context(0, true, player_index)
 	return ItemDecider.decide(item_data, rule, ctx)
+
+
+# ----------------------------------------------------------------------------
+# 整商店决策入口 (P3 新增)
+# ----------------------------------------------------------------------------
+
+# 对整个商店做决策. 内部 snapshot _shop_items[player_index], 累计 gold 计算预算墙,
+# 对每个 slot 调 decide_shop_item, 返回所有 slot 的决策结果数组.
+#
+# 输入:
+#   base_shop    : BaseShop 节点 (vanilla, 子类 self 同样可传)
+#   player_index : 玩家槽 (默认 0)
+#
+# 返回 Array of Dictionary, 长度 = 该玩家 _shop_items 大小:
+#   [
+#     {"slot_index": 0, "terminal_state": "purchased", "reason": "...", "item_id": "..."},
+#     {"slot_index": 1, "terminal_state": "skipped",   "reason": "...", "item_id": "..."},
+#     ...
+#   ]
+#
+# 容错矩阵:
+#   - base_shop == null            → 返回 []
+#   - base_shop 无 _shop_items     → 返回 []
+#   - shop_automation_enabled=false → 每个 slot 全返 manual (不短路, 让烟雾能验)
+#   - slot 二元组结构异常 / item null → 该 slot 标 skipped + reason="malformed slot"
+#   - RunData 不可用 (烟雾 mock)     → gold 取 0
+#
+# Godot 3 注意:
+#   - 用 Object.get("_shop_items") 而非 base_shop._shop_items, 防止字段缺失崩
+#   - decide_shop_item 返回 DecisionResult 对象, 这里转 Dictionary 输出
+#   - 决策时 gold 累计减 (用 slot[1] = wave_value, 已含 vanilla 折扣)
+
+func process_shop(base_shop, player_index: int = 0) -> Array:
+	var results: Array = []
+	if base_shop == null:
+		return results
+
+	# 取 _shop_items 字典/数组, 防御性访问
+	var slots = base_shop.get("_shop_items")
+	if typeof(slots) != TYPE_ARRAY:
+		return results
+	if player_index < 0 or player_index >= slots.size():
+		return results
+
+	var player_slots = slots[player_index]
+	if typeof(player_slots) != TYPE_ARRAY:
+		return results
+
+	var gold: int = _read_player_gold(player_index)
+
+	for slot_index in player_slots.size():
+		var pair = player_slots[slot_index]
+		var entry: Dictionary
+		if typeof(pair) != TYPE_ARRAY or pair.size() < 2:
+			entry = {
+				"slot_index": slot_index,
+				"terminal_state": Result.STATE_SKIPPED,
+				"reason": "malformed slot",
+				"item_id": "",
+			}
+			results.append(entry)
+			continue
+
+		var item_data = pair[0]
+		var wave_value: int = int(pair[1])
+
+		# decide_shop_item 内部会处理:
+		#   - shop_automation_enabled 总开关 (短路 manual)
+		#   - rule 取值 (没配落 manual)
+		#   - 阈值闸门 / 预算墙 / 诅咒逻辑
+		var dr = decide_shop_item(item_data, gold, player_index)
+
+		entry = {
+			"slot_index": slot_index,
+			"terminal_state": dr.terminal_state,
+			"reason": dr.reason,
+			"item_id": dr.item_id,
+		}
+		results.append(entry)
+
+		# 阶段 1 内即时累减 gold (用 wave_value, vanilla 已计算折扣)
+		if dr.terminal_state == Result.STATE_PURCHASED:
+			gold -= wave_value
+
+	return results
+
+
+# 读 RunData.gold[player_index] 的容错 helper. 任何异常返 0.
+# vanilla RunData.gold 是 Array<int>, 每个玩家一项.
+# 烟雾环境 RunData 可能不存在或 gold 字段缺失, 此时安全降级到 0.
+func _read_player_gold(player_index: int) -> int:
+	if typeof(RunData) != TYPE_OBJECT:
+		return 0
+	var gold_arr = RunData.get("gold")
+	if typeof(gold_arr) != TYPE_ARRAY:
+		return 0
+	if player_index < 0 or player_index >= gold_arr.size():
+		return 0
+	var val = gold_arr[player_index]
+	if typeof(val) != TYPE_INT and typeof(val) != TYPE_REAL:
+		return 0
+	return int(val)
 
 
 # 升级 4 选 1 决策. 返回 0-based 索引或 -1 (NO_PICK).
