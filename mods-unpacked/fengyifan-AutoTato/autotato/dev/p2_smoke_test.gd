@@ -378,6 +378,8 @@ func _test_13_decide_upgrade_min_tier() -> void:
 	_section("[13] decide_upgrade min_tier + quality_first")
 
 	var b = Bridge.new()
+	# 默认 upgrade_automation_enabled=false (避免新装玩家被强制自动选), 这里测决策器逻辑需显式开启
+	b.set_upgrade_automation_enabled(true)
 	b.set_upgrade_config("min_tier", 2)
 	b.set_upgrade_config("quality_first", true)
 

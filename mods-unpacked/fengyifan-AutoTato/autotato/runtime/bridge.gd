@@ -93,7 +93,12 @@ func _load_defaults() -> Dictionary:
 	return {
 		"version": SCHEMA_VERSION,
 		"shop_automation_enabled": true,
-		"upgrade_automation_enabled": true,
+		# upgrade 自动化默认 false: 用户必须显式开启才让决策器自动选升级.
+		# 商店物品默认 true 安全, 因为 decide_shop_item 在没配 rule 时返回 MANUAL,
+		# hook 不会自动买. 但 upgrade_decider 没有"无规则=manual"概念, enabled=true
+		# 必然会选 idx=0. 为避免新装 mod 的玩家被强制自动选升级, 升级总开关默认关闭.
+		# 用户通过 Bridge.set_upgrade_automation_enabled(true) 显式开启.
+		"upgrade_automation_enabled": false,
 		"item_rules": {},
 		"thresholds": DEFAULT_THRESHOLDS.duplicate(true),
 		"general": {

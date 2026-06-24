@@ -5,9 +5,17 @@ extends "res://ui/menus/ingame/upgrades_ui.gd"
 # ----------------------------------------------------------------------------
 # ModLoader v6 Script Extension, hook vanilla 升级 4 选 1 面板.
 #
-# 仅 hook 1 个方法: show_options(consumables, upgrades) -> bool
-#   父类先把 4 个 upgrade_ui.upgrade_data 填好, _player_is_choosing[i] = true
-#   返回后再跑 AutoTato 决策, 给每个正在选的 player 模拟点击.
+# 仅 hook 1 个方法: _show_next_player_options() -> bool
+#   这是 vanilla 升级状态机的"准备好下一组选项"内部入口. 每次 wave 升级面板
+#   弹出或玩家选完一个升级后, vanilla 都会调它准备下一组 4 个 upgrade_ui.
+#   父类填好 4 个 upgrade_ui.upgrade_data + _player_is_choosing[i] = true
+#   并返回 true 后, 跑 AutoTato 决策.
+#
+# 为什么 hook _show_next_player_options 而不是 show_options:
+#   show_options 是升级流程外部入口, 一次 wave 只调一次. 如果玩家一波内升级
+#   两次, vanilla 内部用 _on_choose_button_pressed → _show_next_player_options
+#   状态机循环切换, show_options 不会再被调到, hook 看不到第二次升级 (P3.5 v1 bug).
+#   _show_next_player_options 是真正的"准备 UI"入口, wave 内每次升级都触发.
 #
 # 与 P3 商店 hook 风格一致 (extensions/ui/menus/shop/base_shop.gd):
 #   - AT_Bridge.get_global() 取桥, has_method 防御
@@ -16,25 +24,29 @@ extends "res://ui/menus/ingame/upgrades_ui.gd"
 #   - 不用 Timer
 #   - 全程 Object.get() 读 vanilla 私有字段, 防字段缺失崩
 #
-# 关键: vanilla 没有 `_current_player_index` 字段, 多人 coop 是真并行 —
-#   `_player_is_choosing: [bool; 4]` 标记哪些 player 当前正在选项 (同帧同时显示).
-#   所以 hook 中需遍历 0..get_player_count(), 跳过 _player_is_choosing[i] == false 的.
+# 关键: vanilla 多人 coop 同帧并行展示, `_player_is_choosing: [bool; 4]`
+#   标记哪些 player 当前正在选项. 遍历 0..get_player_count(), 跳过 false 的.
 #
 # 守卫:
 #   - 跳过 crate 物品场景: pc._items_container.visible == true (P3.6 处理)
 #   - 跳过 vanilla 按钮锁: pc._button_pressed (vanilla 防双击)
 #   - 决策器返回 -1 (NO_PICK) 表示玩家手动, 不点击
+#   - 重要: Bridge.decide_upgrade 默认 upgrade_automation_enabled=false,
+#     未显式启用前永远返回 NO_PICK, hook 不会自动点击 (避免 wave 内连点)
 # ============================================================================
 
 const LOG_NAME := "fengyifan-AutoTato:UpgradeHook"
 
 
-# hook show_options: vanilla 每次需要展示升级 4 选 1 时调用. 返回 bool (是否有玩家正在选).
-# 签名必须严格对齐父类: 两个 Array, 返回 bool.
-func show_options(consumables_to_process: Array, upgrades_to_process: Array) -> bool:
-	var ret = .show_options(consumables_to_process, upgrades_to_process)
-	# vanilla 已经填好每个 player 的 upgrade_ui 并设置 _player_is_choosing
-	_autotato_process_upgrades()
+# hook _show_next_player_options: vanilla 升级状态机内部入口.
+# 每次 vanilla 准备好下一组 upgrade_ui 时调用 (进面板 / 玩家选完后).
+# 签名: -> bool (是否有玩家正在选).
+func _show_next_player_options() -> bool:
+	var ret = ._show_next_player_options()
+	# 仅当 vanilla 报告有玩家正在选时, 才跑决策. ret == false 表示无玩家在选,
+	# 此时 _player_is_choosing 全 false, 决策也无意义.
+	if ret:
+		_autotato_process_upgrades()
 	return ret
 
 
@@ -96,6 +108,7 @@ func _autotato_process_upgrades() -> void:
 		#   UpgradeUI.button.pressed → _on_ChooseButton_pressed → emit choose_button_pressed
 		#   → pc._on_choose_button_pressed → emit pc.choose_button_pressed
 		#   → UpgradesUI._on_choose_button_pressed → apply upgrade + _show_next_player_options
+		#     (本 hook 会再次被触发, 处理下一组升级)
 		var target_ui = visible_uis[idx]
 		target_ui.button.emit_signal("pressed")
 

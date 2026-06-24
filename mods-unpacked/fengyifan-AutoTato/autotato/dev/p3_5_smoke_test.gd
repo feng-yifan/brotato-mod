@@ -158,6 +158,8 @@ func _test_3_decide_upgrade_with_real_tres() -> void:
 	_section("[3] 真实 UpgradeData tres + 单候选 -> 返回 0")
 
 	var b = Bridge.new()
+	# 默认 upgrade_automation_enabled=false, 这里测决策器逻辑需显式开启
+	b.set_upgrade_automation_enabled(true)
 	var up = load(REAL_UPGRADE_PATH)
 	_log("  load(%s)=%s" % [REAL_UPGRADE_PATH, str(up)])
 	_assert(up != null, "真实 vanilla upgrade tres 应能 load")
@@ -191,6 +193,8 @@ func _test_5_decide_upgrade_min_tier_filter() -> void:
 	_section("[5] min_tier=2 + quality_first=true -> 选 tier 最高 (idx=2)")
 
 	var b = Bridge.new()
+	# 默认 upgrade_automation_enabled=false, 这里测决策器逻辑需显式开启
+	b.set_upgrade_automation_enabled(true)
 	var list: Array = [
 		_make_mock_upgrade(0),
 		_make_mock_upgrade(2),
@@ -215,6 +219,8 @@ func _test_6_decide_upgrade_quality_first() -> void:
 	_section("[6] min_tier=2 + quality_first=false -> 选首个满足项 (idx=1)")
 
 	var b = Bridge.new()
+	# 默认 upgrade_automation_enabled=false, 这里测决策器逻辑需显式开启
+	b.set_upgrade_automation_enabled(true)
 	var list: Array = [
 		_make_mock_upgrade(0),
 		_make_mock_upgrade(2),
@@ -264,6 +270,8 @@ func _test_8_decide_upgrade_with_threshold() -> void:
 	_section("[8] threshold gate 联动 (stat_speed effect, 玩家=0, upper=20)")
 
 	var b = Bridge.new()
+	# 默认 upgrade_automation_enabled=false, 这里测决策器逻辑需显式开启
+	b.set_upgrade_automation_enabled(true)
 	# 1 个候选: tier=1, effects=[{key:stat_speed, value:5}]
 	var speed_eff: Dictionary = {"key": "stat_speed", "value": 5}
 	var list: Array = [_make_mock_upgrade(1, [speed_eff])]
