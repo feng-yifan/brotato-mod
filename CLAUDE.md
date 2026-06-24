@@ -160,7 +160,7 @@ grep -E "AutoTato|fengyifan" ~/.local/share/Brotato/logs/godot.log | tail -20
 ### 5.5 git 提交前的强制检查
 
 ```bash
-git add -A --dry-run | grep -vE "^add '(CLAUDE\.md|README\.md|\.gitignore|\.gitattributes|mods-unpacked/|docs/|scripts/)"
+git add -A --dry-run | grep -vE "^add '(CLAUDE\.md|README\.md|\.gitignore|\.gitattributes|mods-unpacked/|docs/|scripts/|\.claude/memory/)"
 # 如果有任何输出，说明白名单失守，立即停手
 ```
 
@@ -243,6 +243,52 @@ ModLoaderLog.error(...)
 - ModLoader Wiki: https://wiki.godotmodding.com/
 - Brotato Modding Guide: https://steamcommunity.com/sharedfiles/filedetails/?id=2931079751
 - Brotato Modding Help: https://steamcommunity.com/sharedfiles/filedetails/?id=2937226054
+- Brotato Wiki Modding Notes: https://brotato.wiki.spellsandguns.com/Modding_Notes
+- Brotato Wiki Modding Effects: https://brotato.wiki.spellsandguns.com/Modding_Effects
+- Brotato Wiki Items Grid: https://brotato.wiki.spellsandguns.com/Items/Items_Grid
 - Godot 3.5 文档: https://docs.godotengine.org/en/3.5/ （注意：搜索默认进 4.x，要手改 URL）
 - BrotatoMods GitHub 组织: https://github.com/BrotatoMods
 - Brotato Discord (#modding-help): https://discord.com/invite/j39jE6k
+
+## 10. 📚 项目记忆系统（`.claude/memory/`）
+
+### 10.1 定位
+
+`.claude/memory/` 目录是**项目的长期知识库**，按主题拆分为独立文件，每个文件聚焦一个领域的深度理解。这些文件由 Claude 结合外部资料（Steam 指南、Brotato Wiki）和源代码分析生成，入 git 仓库作为项目资产。
+
+与 CLAUDE.md 的区别：
+- **CLAUDE.md** = 总指挥，重流程、环境、安全红线、行为约束。每次会话加载但内容精简。
+- **memory/** = 深度知识，重理解、架构、术语、设计意图。按需加载。
+
+### 10.2 当前记忆文件
+
+| 文件 | 内容领域 |
+|---|---|
+| `brotato-game-concepts.md` | 游戏概念、16 属性体系、Tier/武器分类、游戏循环、术语词汇表 |
+| `brotato-modding.md` | Mod 开发环境、ModLoader 6.3.0 机制、API、注册内容流程、安全红线 |
+| `brotato-vanilla-architecture.md` | Vanilla 目录结构、60+ 单例速查、效果系统深度解析、数据模型 |
+| `autotato-architecture.md` | AutoTato 分层架构、每层设计意图、决策流程、核心架构模式 |
+| `autotato-ui-flow.md` | UI 树、ConfigPanel 交互流程、ESC 竞态问题、时序图、P5.2+ roadmap |
+
+### 10.3 维护策略
+
+**何时更新**：
+- **vanilla 相关文件**（`brotato-vanilla-architecture.md`、`brotato-game-concepts.md`）：游戏版本更新后，如果单例/效果/属性体系有变化，重新分析并更新。
+- **mod 开发相关**（`brotato-modding.md`）：ModLoader 版本更新或发现新的开发最佳实践后更新。
+- **AutoTato 相关**（`autotato-architecture.md`、`autotato-ui-flow.md`）：架构层面有重大决策变更、新增分层、UI 交互流程改变时更新。
+
+**何时不更新**：
+- 小范围代码修改不改变架构设计意图时，不需要更新 memory。
+- 临时的 bug fix、日志调整、烟雾测试修改不需要反映到 memory。
+
+**更新规则**：
+1. 修改完成后，检查是否有架构级/概念级的新理解需要固化
+2. 新增内容追加到对应主题文件末尾或修改对应章节，**不做全量重写**（保留历史演变痕迹）
+3. 更新文件顶部的 `> 更新日期` 行
+4. 同步更新本节的"当前记忆文件"表格（如有新增/删除文件）
+
+**Claude 行为约束**：
+- 🟡 每次会话开始时**自动加载所有 memory 文件**作为上下文基础
+- 🟡 当用户问及项目架构/设计意图/历史决策时，**优先查 memory 文件**，无需重新分析代码
+- 🟡 发现 memory 内容与当前代码不一致时，**主动告知用户**并建议更新
+- 🟡 进行重大架构变更后，**主动提议更新相关 memory 文件**
