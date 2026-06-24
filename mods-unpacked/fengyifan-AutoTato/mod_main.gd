@@ -19,9 +19,10 @@ extends Node
 #   - _ready() 里做需要场景树就绪后的初始化（如查找节点、连接信号）
 #   - 所有日志走 ModLoaderLog，调用时附带本 mod 的唯一 LOG_NAME 作为来源
 #
-# 当前阶段：P1 — 数据层（P0）+ 决策器层（P1）已完成。决策器是纯函数，
-#   Script Extensions 仍未挂载，游戏行为与 vanilla 完全一致；启动只会记
-#   一行 "AutoTato 已加载" 日志。决策器通过烟雾脚本验证，不影响生产玩家。
+# 当前阶段：P2 — 数据层（P0）+ 决策器层（P1）+ Bridge 适配层（P2）。
+#   Bridge 持有内存版 config 与决策入口，通过 Engine.set_meta() 注册全局，
+#   未来 P3 hook 调 AT_Bridge.get_global() 接入。Script Extensions 仍未挂载，
+#   游戏行为与 vanilla 完全一致；启动只多一行 "AutoTato 已加载" 日志。
 # ============================================================================
 
 # Mod ID 拆出来做常量，方便构造资源路径与日志归属
@@ -53,6 +54,12 @@ const PATH_ITEM_DECIDER     := "res://mods-unpacked/fengyifan-AutoTato/autotato/
 const PATH_UPGRADE_DECIDER  := "res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/upgrade_decider.gd"
 const PATH_P1_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p1_smoke_test.gd"
 
+# ----------------------------------------------------------------------------
+# P2 Bridge 层文件路径
+# ----------------------------------------------------------------------------
+const PATH_BRIDGE           := "res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd"
+const PATH_P2_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p2_smoke_test.gd"
+
 # preload 一遍所有文件，强制 Godot 在 mod 加载阶段解析它们
 # 写错路径或语法错误会在这里直接报错，不会拖到运行期
 const _PRELOAD_EFFECT_SCHEMA    := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/effect_schema.gd")
@@ -65,21 +72,29 @@ const _PRELOAD_DECISION_RESULT  := preload("res://mods-unpacked/fengyifan-AutoTa
 const _PRELOAD_THRESHOLD_GATE   := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/threshold_gate.gd")
 const _PRELOAD_ITEM_DECIDER     := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/item_decider.gd")
 const _PRELOAD_UPGRADE_DECIDER  := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/upgrade_decider.gd")
+const _PRELOAD_BRIDGE           := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 
 # ----------------------------------------------------------------------------
 # 烟雾测试开关（开发期自检用，默认全部关闭）
 # ----------------------------------------------------------------------------
 # 推荐用环境变量临时启用，跑完不留痕：
-#   P0:  AUTOTATO_SMOKE=1    ./Brotato.x86_64
+#   P0:  AUTOTATO_SMOKE=1    ./Brotato.x86_64   (兼容旧名)
 #   P1:  AUTOTATO_P1_SMOKE=1 ./Brotato.x86_64
-# 也可以同时跑两套（P0 验证数据层 + P1 验证决策器）
+#   P2:  AUTOTATO_P2_SMOKE=1 ./Brotato.x86_64
+# 多个开关可以叠加（同时跑 P0+P1+P2 验证全栈）
 const DEV_RUN_P0_SMOKE := false
 const DEV_RUN_P1_SMOKE := false
+const DEV_RUN_P2_SMOKE := false
 
 # 各子目录路径在 _init() 里组装，避免每个 install 调用都重复写一遍前缀
 var mod_dir_path := ""
 var extensions_dir_path := ""
 var translations_dir_path := ""
+
+# Bridge 全局实例（P2 引入）。在 _init() 末尾 new 出来并注册到 Engine.set_meta，
+# Hook 层（P3 任务）通过 AT_Bridge.get_global() 拿到。
+# 不写 `: AT_Bridge` 类型注解，因为 Godot 3 解析期可能还未注册 class_name。
+var bridge
 
 
 # ----------------------------------------------------------------------------
@@ -94,11 +109,16 @@ func _init() -> void:
 	install_script_extensions()
 	add_translations()
 
+	# P2: 创建 Bridge 实例并注册到 Engine 元数据
+	# Hook 层（P3 任务）通过 AT_Bridge.get_global() 拿到，一行接入
+	bridge = _PRELOAD_BRIDGE.new()
+	_PRELOAD_BRIDGE.register_global(bridge)
+
 
 # _ready() 在节点被加到场景树后触发（vanilla 场景已经存在）
 # 适合做：查找现有节点、连接信号、注入 UI 控件
 func _ready() -> void:
-	ModLoaderLog.info("AutoTato 已加载（P0 数据层 + P1 决策器）", LOG_NAME)
+	ModLoaderLog.info("AutoTato 已加载（P0 数据层 + P1 决策器 + P2 Bridge）", LOG_NAME)
 
 	# 开发期烟雾测试：常量开关 + 环境变量 双触发
 	# 用 deferred 避免在 _ready 链上做长 IO，让其他 mod 先加载完
@@ -107,11 +127,14 @@ func _ready() -> void:
 		or OS.has_environment("AUTOTATO_SMOKE") \
 		or OS.has_environment("AUTOTATO_P0_SMOKE")
 	var run_p1 := DEV_RUN_P1_SMOKE or OS.has_environment("AUTOTATO_P1_SMOKE")
+	var run_p2 := DEV_RUN_P2_SMOKE or OS.has_environment("AUTOTATO_P2_SMOKE")
 
 	if run_p0:
 		call_deferred("_run_smoke_test", PATH_P0_SMOKE_TEST, "P0")
 	if run_p1:
 		call_deferred("_run_smoke_test", PATH_P1_SMOKE_TEST, "P1")
+	if run_p2:
+		call_deferred("_run_smoke_test", PATH_P2_SMOKE_TEST, "P2")
 
 
 # 通用烟雾脚本入口。脚本路径通过 path 传入，stage_label 仅用于日志区分
