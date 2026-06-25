@@ -36,6 +36,7 @@ func _build_ui() -> void:
 	# 预算设置
 	var budget_label := Label.new()
 	budget_label.text = "预算设置"
+	budget_label.modulate = Color(0.35, 0.8, 1.0, 1.0)
 	vbox.add_child(budget_label)
 
 	vbox.add_child(_build_number_input("min_gold_balance", "最低金币保留", "购买后至少保留的金币数"))
@@ -47,6 +48,7 @@ func _build_ui() -> void:
 	# 行为设置
 	var behavior_label := Label.new()
 	behavior_label.text = "行为设置"
+	behavior_label.modulate = Color(0.35, 0.8, 1.0, 1.0)
 	vbox.add_child(behavior_label)
 
 	vbox.add_child(_build_toggle("auto_start_wave", "自动开始下一关", "商店无法刷新时自动进入下一波敌袭", "_on_general_bool_toggled"))
