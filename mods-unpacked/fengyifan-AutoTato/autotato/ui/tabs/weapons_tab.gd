@@ -23,8 +23,8 @@ const SET_RULE_OPTIONS := [
 ]
 
 const GRID_COLUMNS := 7
-const CARD_ICON_SIZE := 56
-const CARD_MIN_HEIGHT := 56
+const CARD_ICON_SIZE := 80
+const CARD_MIN_HEIGHT := 80
 const GRID_HSEP := 6
 const GRID_VSEP := 6
 const CARD_BORDER := 2
@@ -400,26 +400,26 @@ func _apply_card_text(cid: String, own_label: Label, result_label: Label, self_r
 	var own_color: Color
 	match sr:
 		"manual":
-			own_text = "自身: 手动"
+			own_text = "手动"
 			own_color = COLOR_MANUAL
 		"skip":
-			own_text = "自身: 跳过"
+			own_text = "跳过"
 			own_color = COLOR_SKIP
 		_:
-			own_text = "自身: 受类别控制"
+			own_text = "受类别控制"
 			own_color = COLOR_FOLLOW
 	own_label.text = own_text
 	own_label.modulate = own_color
 
-	# 第二行: 生效结果. 自身 = follow → 灰色
+	# 第二行: 生效结果
 	var result_text: String
 	var result_color: Color
 	match action:
 		"skip":
-			result_text = "生效: 跳过"
+			result_text = "跳过"
 			result_color = COLOR_SKIP
 		_:
-			result_text = "生效: 手动"
+			result_text = "手动"
 			result_color = COLOR_MANUAL
 
 	if sr == "" or sr == "follow_set_rule":
@@ -535,7 +535,7 @@ func _ensure_popup() -> void:
 	_popup.add_child(ctr)
 
 	var panel := PanelContainer.new()
-	panel.rect_min_size = Vector2(380, 280)
+	panel.rect_min_size = Vector2(380, 340)
 	panel.mouse_filter = MOUSE_FILTER_STOP
 	ctr.add_child(panel)
 
@@ -563,7 +563,7 @@ func _ensure_popup() -> void:
 	cv.add_child(_label("类别规则:"))
 
 	var sc := ScrollContainer.new()
-	sc.rect_min_size = Vector2(0, 80)
+	sc.rect_min_size = Vector2(0, 120)
 	_set_rule_vbox = VBoxContainer.new()
 	_set_rule_vbox.size_flags_horizontal = SIZE_EXPAND_FILL
 	_set_rule_vbox.add_constant_override("separation", 2)

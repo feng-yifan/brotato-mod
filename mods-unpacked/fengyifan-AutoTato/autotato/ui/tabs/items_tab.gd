@@ -47,17 +47,17 @@ const TIERS := [
 const SHOP_ACTIONS := [
 	["manual",            "手动"],
 	["get",               "购买"],
-	["reject",            "拒绝"],
 	["lock_until_cursed", "锁定等诅咒"],
 	["cursed_only",       "仅诅咒"],
+	["reject",            "拒绝"],
 ]
 
 # chest_action 选项
 const CHEST_ACTIONS := [
 	["manual",       "手动"],
 	["take",         "拿取"],
-	["reject",       "拒绝"],
 	["cursed_only",  "仅诅咒"],
+	["reject",       "拒绝"],
 ]
 
 const GRID_COLUMNS := 7

@@ -12,15 +12,15 @@ const LOG_NAME := "fengyifan-AutoTato:ShopItemExt"
 const SHOP_ACTIONS := [
 	["manual",            "手动"],
 	["get",               "购买"],
-	["reject",            "拒绝"],
 	["lock_until_cursed", "锁定等诅咒"],
 	["cursed_only",       "仅诅咒"],
+	["reject",            "拒绝"],
 ]
 const CHEST_ACTIONS := [
 	["manual",       "手动"],
 	["take",         "拿取"],
-	["reject",       "拒绝"],
 	["cursed_only",  "仅诅咒"],
+	["reject",       "拒绝"],
 ]
 const WEAPON_SELF_OPTIONS := [
 	["follow_set_rule", "受类别控制"],
@@ -44,7 +44,6 @@ var _at_is_weapon := false
 
 func _ready() -> void:
 	._ready()
-	# 找 BanButton 并替换
 	var ban_btn = _find_node("BanButton")
 	if ban_btn and ban_btn is Button:
 		ban_btn.visible = false
@@ -52,7 +51,7 @@ func _ready() -> void:
 			var btn := Button.new()
 			btn.name = "AutoTatoRuleButton"
 			btn.text = "规则"
-			btn.rect_min_size = Vector2(30, 20)
+			btn.focus_mode = Control.FOCUS_ALL
 			ban_btn.get_parent().add_child(btn)
 			btn.connect("pressed", self, "_at_rule_pressed")
 
@@ -62,6 +61,12 @@ func _at_rule_pressed() -> void:
 		return
 	_at_is_weapon = (item_data.get("weapon_id") != null and item_data.get("weapon_id") != "")
 	_at_ensure_popup()
+
+	# 更新按钮文字
+	# 找按钮并更新文字
+	var btn = _find_node("AutoTatoRuleButton")
+	if btn:
+		btn.text = "武器规则" if _at_is_weapon else "物品规则"
 
 	var bridge = _at_bridge()
 	if bridge == null:

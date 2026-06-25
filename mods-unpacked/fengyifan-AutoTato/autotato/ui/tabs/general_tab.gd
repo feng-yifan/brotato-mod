@@ -16,15 +16,21 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.name = "ScrollContainer"
+	scroll.anchor_right = 1.0
+	scroll.anchor_bottom = 1.0
+	scroll.scroll_horizontal_enabled = false
+	add_child(scroll)
+
 	var vbox := VBoxContainer.new()
 	vbox.name = "GeneralVBox"
-	vbox.anchor_right = 1.0
-	vbox.anchor_bottom = 1.0
+	vbox.size_flags_horizontal = SIZE_EXPAND_FILL
 	vbox.margin_left = 16.0
 	vbox.margin_right = 16.0
 	vbox.margin_top = 8.0
 	vbox.add_constant_override("separation", 16)
-	add_child(vbox)
+	scroll.add_child(vbox)
 
 	# 升级自动化
 	vbox.add_child(_build_toggle("upgrade_auto", "升级自动化", "在升级时自动选择最优项", "_on_upgrade_toggled"))
