@@ -86,7 +86,10 @@ const PATH_P4_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/
 const PATH_HOOK_INGAME_MAIN_MENU := "ui/menus/ingame/ingame_main_menu.gd"
 const PATH_CONFIG_PANEL_GD       := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/config_panel.gd"
 const PATH_GENERAL_TAB_GD        := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/general_tab.gd"
+const PATH_ITEMS_TAB_GD       := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/items_tab.gd"
+const PATH_THRESHOLDS_TAB_GD  := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/thresholds_tab.gd"
 const PATH_P5_1_SMOKE_TEST       := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p5_1_smoke_test.gd"
+const PATH_P2_V6_SMOKE_TEST      := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p2_v6_smoke_test.gd"
 
 # preload 一遍所有文件，强制 Godot 在 mod 加载阶段解析它们
 # 写错路径或语法错误会在这里直接报错，不会拖到运行期
@@ -106,6 +109,8 @@ const _PRELOAD_BRIDGE           := preload("res://mods-unpacked/fengyifan-AutoTa
 # P5.1 UI 类 preload 校验 (强制启动期解析, 写错路径或语法错立刻报错)
 const _PRELOAD_CONFIG_PANEL_GD  := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/config_panel.gd")
 const _PRELOAD_GENERAL_TAB_GD   := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/general_tab.gd")
+const _PRELOAD_ITEMS_TAB_GD     := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/items_tab.gd")
+const _PRELOAD_THRESHOLDS_TAB_GD := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/thresholds_tab.gd")
 
 # ----------------------------------------------------------------------------
 # 烟雾测试开关（开发期自检用，默认全部关闭）
@@ -124,6 +129,7 @@ const DEV_RUN_P3_SMOKE := false
 const DEV_RUN_P3_5_SMOKE := false
 const DEV_RUN_P4_SMOKE := false
 const DEV_RUN_P5_1_SMOKE := false
+DEV_RUN_P2_V6_SMOKE := false
 
 # 各子目录路径在 _init() 里组装，避免每个 install 调用都重复写一遍前缀
 var mod_dir_path := ""
@@ -171,6 +177,7 @@ func _ready() -> void:
 	var run_p3_5 := DEV_RUN_P3_5_SMOKE or OS.has_environment("AUTOTATO_P3_5_SMOKE")
 	var run_p4 := DEV_RUN_P4_SMOKE or OS.has_environment("AUTOTATO_P4_SMOKE")
 	var run_p5_1 := DEV_RUN_P5_1_SMOKE or OS.has_environment("AUTOTATO_P5_1_SMOKE")
+	var run_p2_v6 := DEV_RUN_P2_V6_SMOKE or OS.has_environment("AUTOTATO_P2_V6_SMOKE")
 
 	if run_p0:
 		call_deferred("_run_smoke_test", PATH_P0_SMOKE_TEST, "P0")
@@ -186,6 +193,8 @@ func _ready() -> void:
 		call_deferred("_run_smoke_test", PATH_P4_SMOKE_TEST, "P4")
 	if run_p5_1:
 		call_deferred("_run_smoke_test", PATH_P5_1_SMOKE_TEST, "P5.1")
+	if run_p2_v6:
+		call_deferred("_run_smoke_test", PATH_P2_V6_SMOKE_TEST, "P2v6")
 
 
 # 通用烟雾脚本入口。脚本路径通过 path 传入，stage_label 仅用于日志区分
