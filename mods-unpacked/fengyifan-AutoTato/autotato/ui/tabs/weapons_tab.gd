@@ -1,20 +1,11 @@
 extends Control
 
 # ============================================================================
-# AutoTato — Weapons Tab (P5.4-ext 武器规则编辑器)
+# AutoTato — Weapons Tab (v6 武器规则编辑器)
 # ----------------------------------------------------------------------------
 # 武器规则三级: 自身规则 > 类别规则 > 默认(manual)
-#
-# 武器自身规则: follow_set_rule / manual / skip, 默认 follow_set_rule
-# 武器类别规则: manual / skip, 默认 manual
-#
-# 按武器类别 (ItemService.sets) 分组, 每组可折叠 7 列网格.
-# 一把武器属于多个类别的, 在每个类别网格中都出现.
-#
-# 全局设置: weapon.min_tier (低于此 tier 直接跳过)
-#
-# 弹窗:
-#   配置武器自身规则 + 武器所属类别的规则
+# 按武器类别分组, 每组可折叠 7 列网格, 标题栏右侧有类别规则下拉.
+# 卡片两行文字: 第一行武器自身规则, 第二行实际生效结果 (受类别控制=灰色).
 # ============================================================================
 
 const LOG_NAME := "fengyifan-AutoTato:WeaponsTab"
@@ -42,23 +33,17 @@ const ACTION_COLOR_MANUAL  := Color(1.0, 0.35, 0.35, 1.0)
 const ACTION_COLOR_SKIP    := Color(0.35, 1.0, 0.45, 1.0)
 
 var _groups: VBoxContainer = null
-# _card_refs: weapon_id → {label, button}
-var _card_refs: Dictionary = {}
-# _set_blocks: set_id → {header, grid, items, ...}
-var _set_blocks: Dictionary = {}
-var _weapon_set_map: Dictionary = {}  # weapon_id → Array[set_id]
+var _card_refs: Dictionary = {}          # weapon_id → {own_label, result_label, button}
+var _set_blocks: Dictionary = {}          # set_id → {header, grid, rule_opt, ...}
+var _weapon_set_map: Dictionary = {}      # weapon_id → Array[set_id]
 var _refreshing := false
 
 var _popup: Popup = null
 var _editing_weapon_id: String = ""
 var _self_option: OptionButton = null
 var _set_rule_vbox: VBoxContainer = null
-var _min_tier_opt: OptionButton = null  # 全局最低武器级别
+var _min_tier_opt: OptionButton = null
 
-
-# ============================================================================
-# 生命周期
-# ============================================================================
 
 func _ready() -> void:
 	_build_ui()
@@ -71,10 +56,6 @@ func _notification(what: int) -> void:
 			_popup.hide()
 			_enable_config_input()
 
-
-# ============================================================================
-# UI 构建
-# ============================================================================
 
 func _build_ui() -> void:
 	var root := VBoxContainer.new()
@@ -95,20 +76,19 @@ func _build_ui() -> void:
 	min_tier_label.valign = Label.VALIGN_CENTER
 	settings.add_child(min_tier_label)
 
-	var min_tier_opt := OptionButton.new()
-	min_tier_opt.name = "MinTierOpt"
-	min_tier_opt.rect_min_size.x = 80
-	_min_tier_opt = min_tier_opt
+	_min_tier_opt = OptionButton.new()
+	_min_tier_opt.name = "MinTierOpt"
+	_min_tier_opt.rect_min_size.x = 80
 	for i in range(5):
 		var label: String
 		match i:
 			0: label = "不限"
 			_: label = "≥ %d" % i
-		min_tier_opt.add_item(label)
-	min_tier_opt.connect("item_selected", self, "_on_min_tier_changed")
-	settings.add_child(min_tier_opt)
+		_min_tier_opt.add_item(label)
+	_min_tier_opt.connect("item_selected", self, "_on_min_tier_changed")
+	settings.add_child(_min_tier_opt)
 
-	# ---- Scroll area ----
+	# Scroll
 	var scroll := ScrollContainer.new()
 	scroll.name = "ScrollContainer"
 	scroll.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -143,25 +123,21 @@ func _refresh() -> void:
 		set_rules = bridge.get_weapon_category_rules()
 		min_tier = bridge.get_weapon_min_tier()
 
-	# 同步全局 min_tier 下拉
 	if _min_tier_opt:
 		match min_tier:
 			-1, 0: _min_tier_opt.select(0)
 			_: _min_tier_opt.select(min_tier)
 
-	# 加载武器数据
 	var weapons: Array = _load_weapons()
 	if weapons.empty():
 		_show_empty("武器数据不可用")
 		return
 
-	# 加载 set 数据
 	var sets: Array = _load_sets()
 	if sets.empty():
 		_show_empty("武器类别数据不可用")
 		return
 
-	# 构建 set → weapons 映射
 	var set_to_weapons := {}
 	for s in sets:
 		var sid: String = s.get("my_id")
@@ -181,7 +157,6 @@ func _refresh() -> void:
 				if not _weapon_set_map[wid].has(sid):
 					_weapon_set_map[wid].append(sid)
 
-	# 构建分组网格
 	for s in sets:
 		var sid: String = s.get("my_id")
 		var entry = set_to_weapons[sid]
@@ -215,7 +190,6 @@ func _load_weapons() -> Array:
 	var weapons = ItemService.get("weapons")
 	if typeof(weapons) != TYPE_ARRAY:
 		return []
-	# 滤掉不可掉落武器
 	var result := []
 	for w in weapons:
 		if w.get("can_be_looted") != false:
@@ -233,7 +207,7 @@ func _load_sets() -> Array:
 
 
 # ============================================================================
-# Set block
+# Set block — 可折叠网格, 标题栏右侧有类别规则下拉
 # ============================================================================
 
 func _build_set_block(set_data, weapons: Array, self_rules: Dictionary, set_rules: Dictionary) -> void:
@@ -247,7 +221,6 @@ func _build_set_block(set_data, weapons: Array, self_rules: Dictionary, set_rule
 	# Header
 	var header_btn := Button.new()
 	header_btn.flat = true
-	header_btn.align = Button.ALIGN_LEFT
 	header_btn.size_flags_horizontal = SIZE_EXPAND_FILL
 	header_btn.rect_min_size = Vector2(0, 28)
 
@@ -266,7 +239,19 @@ func _build_set_block(set_data, weapons: Array, self_rules: Dictionary, set_rule
 	var name_label := Label.new()
 	name_label.text = sname
 	name_label.valign = Label.VALIGN_CENTER
+	name_label.size_flags_horizontal = SIZE_EXPAND_FILL
 	header_inner.add_child(name_label)
+
+	# 类别规则下拉
+	var rule_opt := OptionButton.new()
+	rule_opt.name = "SetRule_%s" % sid
+	rule_opt.rect_min_size.x = 70
+	for pair in SET_RULE_OPTIONS:
+		rule_opt.add_item(pair[1])
+	var cr: String = set_rules.get(sid, "manual")
+	_set_option_by_value(rule_opt, cr, SET_RULE_OPTIONS)
+	rule_opt.connect("item_selected", self, "_on_set_rule_changed", [sid])
+	header_inner.add_child(rule_opt)
 
 	header_btn.add_child(header_inner)
 	_groups.add_child(header_btn)
@@ -283,17 +268,26 @@ func _build_set_block(set_data, weapons: Array, self_rules: Dictionary, set_rule
 		"header": header_btn,
 		"grid": grid,
 		"arrow": arrow,
+		"rule_opt": rule_opt,
 		"weapons": weapons,
 	}
 	header_btn.connect("pressed", self, "_on_set_header_toggled", [sid])
 
-	# Cards
 	for w in weapons:
 		_build_card(grid, w, self_rules, set_rules)
 
 
+func _on_set_rule_changed(idx: int, set_id: String) -> void:
+	var bridge = _get_bridge()
+	if bridge == null:
+		return
+	var val = SET_RULE_OPTIONS[idx][0] if idx >= 0 else "manual"
+	bridge.set_weapon_category_rule(set_id, val)
+	_refresh()
+
+
 # ============================================================================
-# Card
+# Card — 两行文字
 # ============================================================================
 
 func _build_card(grid: GridContainer, weapon_data, self_rules: Dictionary, set_rules: Dictionary) -> void:
@@ -325,36 +319,52 @@ func _build_card(grid: GridContainer, weapon_data, self_rules: Dictionary, set_r
 		icon_rect.texture = tex
 	hbox.add_child(icon_rect)
 
-	# Rule label
-	var rule_label := Label.new()
-	rule_label.align = Label.ALIGN_LEFT
-	rule_label.valign = Label.VALIGN_CENTER
-	rule_label.clip_text = true
-	rule_label.size_flags_horizontal = SIZE_EXPAND_FILL
-	rule_label.add_font_override("font", CARD_TEXT_FONT)
-	rule_label.mouse_filter = MOUSE_FILTER_IGNORE
-	hbox.add_child(rule_label)
+	# 右侧两行文字
+	var text_vbox := VBoxContainer.new()
+	text_vbox.size_flags_horizontal = SIZE_EXPAND_FILL
+	text_vbox.size_flags_vertical = SIZE_EXPAND_FILL
+	text_vbox.alignment = BoxContainer.ALIGN_CENTER
+	text_vbox.mouse_filter = MOUSE_FILTER_IGNORE
 
+	# 第一行: 武器自身规则
+	var own_label := Label.new()
+	own_label.align = Label.ALIGN_LEFT
+	own_label.valign = Label.VALIGN_CENTER
+	own_label.clip_text = true
+	own_label.size_flags_horizontal = SIZE_EXPAND_FILL
+	own_label.add_font_override("font", CARD_TEXT_FONT)
+	own_label.mouse_filter = MOUSE_FILTER_IGNORE
+	text_vbox.add_child(own_label)
+
+	# 第二行: 实际生效结果 (受类别控制 = 灰色)
+	var result_label := Label.new()
+	result_label.align = Label.ALIGN_LEFT
+	result_label.valign = Label.VALIGN_CENTER
+	result_label.clip_text = true
+	result_label.size_flags_horizontal = SIZE_EXPAND_FILL
+	result_label.add_font_override("font", CARD_TEXT_FONT)
+	result_label.mouse_filter = MOUSE_FILTER_IGNORE
+	text_vbox.add_child(result_label)
+
+	hbox.add_child(text_vbox)
 	btn.add_child(hbox)
 	grid.add_child(btn)
 
 	_card_refs[wid] = {
-		"label": rule_label,
+		"own_label": own_label,
+		"result_label": result_label,
 		"button": btn,
 	}
 
 	btn.connect("pressed", self, "_on_card_pressed", [wid])
-
-	_apply_card_style(wid, rule_label, self_rules, set_rules)
+	_apply_card_style(wid, own_label, result_label, self_rules, set_rules)
 
 
 func _resolve_weapon_action(weapon_id: String, self_rules: Dictionary, set_rules: Dictionary) -> String:
-	# 三层优先级: 自身规则 > 类别规则 > 默认 manual
 	if self_rules.has(weapon_id):
 		var r = self_rules[weapon_id]
 		if r == "manual" or r == "skip":
 			return r
-	# 查类别规则 (武器所属的全部类别)
 	var set_ids = _weapon_set_map.get(weapon_id, [])
 	var all_skip := true
 	var has_rule := false
@@ -370,36 +380,39 @@ func _resolve_weapon_action(weapon_id: String, self_rules: Dictionary, set_rules
 	return "manual"
 
 
-func _apply_card_style(weapon_id: String, label: Label, self_rules: Dictionary, set_rules: Dictionary) -> void:
+func _apply_card_style(weapon_id: String, own_label: Label, result_label: Label, self_rules: Dictionary, set_rules: Dictionary) -> void:
 	var action: String = _resolve_weapon_action(weapon_id, self_rules, set_rules)
-	var color: Color
-	match action:
-		"skip":   color = ACTION_COLOR_SKIP
-		"manual": color = ACTION_COLOR_MANUAL
-		_:        color = ACTION_COLOR_FOLLOW
-	label.modulate = color
-
-	var display: String
 	var sr = self_rules.get(weapon_id, "")
+
+	# 第一行: 自身规则
+	var own_text: String
 	match sr:
-		"manual": display = "手动"
-		"skip":   display = "跳过"
+		"manual": own_text = "自身: 手动"
+		"skip":   own_text = "自身: 跳过"
+		_:        own_text = "自身: 受类别控制"
+	own_label.text = own_text
+	own_label.modulate = ACTION_COLOR_FOLLOW if sr == "" or sr == "follow_set_rule" else (ACTION_COLOR_SKIP if sr == "skip" else ACTION_COLOR_MANUAL)
+
+	# 第二行: 实际生效结果
+	var result_text: String
+	var result_color: Color
+	match action:
+		"skip":
+			result_text = "生效: 跳过"
+			result_color = ACTION_COLOR_SKIP
+		"manual":
+			result_text = "生效: 手动"
+			result_color = ACTION_COLOR_MANUAL
 		_:
-			# 受类别控制 → 显示类别名
-			display = "类别:手动"
-			var set_ids = _weapon_set_map.get(weapon_id, [])
-			var all_skip := true
-			var has_rule := false
-			for sid in set_ids:
-				var cr = set_rules.get(sid, "manual")
-				if cr == "manual":
-					all_skip = false
-					has_rule = true
-				else:
-					has_rule = true
-			if has_rule and all_skip:
-				display = "类别:跳过"
-	label.text = display
+			result_text = "生效: 手动"
+			result_color = ACTION_COLOR_MANUAL
+
+	# 受类别控制 → 灰色 (自身规则为 follow 时)
+	if sr == "" or sr == "follow_set_rule":
+		result_label.modulate = Color(1, 1, 1, 0.35)
+	else:
+		result_label.modulate = result_color
+	result_label.text = result_text
 
 
 # ============================================================================
@@ -434,7 +447,7 @@ func _on_card_pressed(weapon_id: String) -> void:
 	var sr: String = self_rules.get(weapon_id, "follow_set_rule")
 	_set_option_by_value(_self_option, sr, WEAPON_SELF_OPTIONS)
 
-	# 重建类别规则控件
+	# 类别规则控件
 	_build_set_rule_controls(set_rules)
 
 	_popup.popup_centered_ratio(1.0)
@@ -442,15 +455,12 @@ func _on_card_pressed(weapon_id: String) -> void:
 
 
 func _build_set_rule_controls(set_rules: Dictionary) -> void:
-	# 清空旧控件
 	for child in _set_rule_vbox.get_children():
 		child.queue_free()
 
 	var set_ids = _weapon_set_map.get(_editing_weapon_id, [])
 	if set_ids.empty():
-		var no_set := Label.new()
-		no_set.text = "此武器不属于任何类别"
-		_set_rule_vbox.add_child(no_set)
+		_set_rule_vbox.add_child(_make_label("此武器不属于任何类别"))
 		return
 
 	var sets = _load_sets()
@@ -479,6 +489,12 @@ func _build_set_rule_controls(set_rules: Dictionary) -> void:
 		row.add_child(opt)
 
 		_set_rule_vbox.add_child(row)
+
+
+func _make_label(t: String) -> Label:
+	var l := Label.new()
+	l.text = t
+	return l
 
 
 # ============================================================================
@@ -527,33 +543,23 @@ func _ensure_popup() -> void:
 	margin.add_child(content_vbox)
 	vbox.add_child(margin)
 
-	# Title
 	var title := Label.new()
 	title.name = "PopupTitle"
 	title.align = Label.ALIGN_CENTER
 	title.valign = Label.VALIGN_CENTER
 	content_vbox.add_child(title)
-
 	content_vbox.add_child(HSeparator.new())
 
-	# 自身规则
-	var self_label := Label.new()
-	self_label.text = "武器自身规则:"
-	self_label.valign = Label.VALIGN_CENTER
-	content_vbox.add_child(self_label)
+	content_vbox.add_child(_make_label("武器自身规则:"))
 
 	_self_option = OptionButton.new()
 	_self_option.size_flags_horizontal = SIZE_EXPAND_FILL
 	for pair in WEAPON_SELF_OPTIONS:
 		_self_option.add_item(pair[1])
 	content_vbox.add_child(_self_option)
-
 	content_vbox.add_child(HSeparator.new())
 
-	# 类别规则区域
-	var set_label := Label.new()
-	set_label.text = "所属类别规则:"
-	content_vbox.add_child(set_label)
+	content_vbox.add_child(_make_label("所属类别规则:"))
 
 	var scroll := ScrollContainer.new()
 	scroll.rect_min_size = Vector2(0, 100)
@@ -562,10 +568,8 @@ func _ensure_popup() -> void:
 	_set_rule_vbox.add_constant_override("separation", 4)
 	scroll.add_child(_set_rule_vbox)
 	content_vbox.add_child(scroll)
-
 	content_vbox.add_child(HSeparator.new())
 
-	# Buttons
 	var btn_hbox := HBoxContainer.new()
 	btn_hbox.alignment = BoxContainer.ALIGN_END
 
@@ -597,7 +601,6 @@ func _on_popup_save() -> void:
 	if bridge == null:
 		return
 
-	# 保存自身规则
 	var self_idx = _self_option.selected
 	var self_val = WEAPON_SELF_OPTIONS[self_idx][0] if self_idx >= 0 else "follow_set_rule"
 	if self_val == "follow_set_rule":
@@ -605,9 +608,7 @@ func _on_popup_save() -> void:
 	else:
 		bridge.set_weapon_rule(_editing_weapon_id, self_val)
 
-	# 保存类别规则
 	for row in _set_rule_vbox.get_children():
-		# 找 row (HBoxContainer) 中的 OptionButton
 		for child in row.get_children():
 			if child is OptionButton:
 				var opt: OptionButton = child
@@ -649,20 +650,8 @@ func _on_min_tier_changed(idx: int) -> void:
 	_refresh()
 
 
-# ============================================================================
-# Helpers
-# ============================================================================
-
 func _get_bridge():
 	return Engine.get_meta("fengyifan-AutoTato:Bridge")
-
-
-func _find_child(name: String):
-	for c in get_children():
-		var node = c.get_node_or_null(name)
-		if node:
-			return node
-	return null
 
 
 func _set_option_by_value(opt: OptionButton, value: String, actions: Array) -> void:
@@ -672,10 +661,6 @@ func _set_option_by_value(opt: OptionButton, value: String, actions: Array) -> v
 			return
 	opt.select(0)
 
-
-# ============================================================================
-# ESC 竞态修复
-# ============================================================================
 
 func _disable_config_input() -> void:
 	var node: Node = self

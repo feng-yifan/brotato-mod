@@ -53,7 +53,7 @@ const DEFAULT_THRESHOLD_ENTRY := {
 }
 
 # 白名单
-const VALID_GENERAL_KEYS := ["min_gold_balance", "item_price_threshold", "auto_start_wave", "keep_running"]
+const VALID_GENERAL_KEYS := ["min_gold_balance", "item_price_threshold", "reroll_budget", "auto_start_wave", "keep_running"]
 const VALID_UPGRADE_CONFIG_KEYS := ["min_tier", "quality_first", "ignore_blacklist_on_stuck"]
 const VALID_WEAPON_CONFIG_KEYS := ["min_tier"]
 const VALID_THRESHOLD_FIELDS := ["mode", "value", "min_tier", "limit_upgrade", "limit_shop", "limit_chest"]
@@ -109,6 +109,7 @@ func _load_defaults() -> Dictionary:
 		"general": {
 			"min_gold_balance": 0,
 			"item_price_threshold": 0,
+			"reroll_budget": 0,
 			"auto_start_wave": false,
 			"keep_running": false,
 		},
@@ -472,6 +473,7 @@ func _build_item_context(gold: int, is_crate: bool, player_index: int) -> Dictio
 		"threshold_config": (_config.get("thresholds", {}) as Dictionary).duplicate(true),
 		"min_gold_balance": int(general.get("min_gold_balance", 0)),
 		"item_price_threshold": int(general.get("item_price_threshold", 0)),
+		"reroll_budget": int(general.get("reroll_budget", 0)),
 		"weapon_min_tier": get_weapon_min_tier(),
 		"weapon_rules": get_weapon_rules(),
 		"weapon_category_rules": get_weapon_category_rules(),
