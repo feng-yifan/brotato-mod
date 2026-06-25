@@ -131,7 +131,7 @@ const DEV_RUN_P3_SMOKE := false
 const DEV_RUN_P3_5_SMOKE := false
 const DEV_RUN_P4_SMOKE := false
 const DEV_RUN_P5_1_SMOKE := false
-DEV_RUN_P2_V6_SMOKE := false
+const DEV_RUN_P2_V6_SMOKE := false
 
 # 各子目录路径在 _init() 里组装，避免每个 install 调用都重复写一遍前缀
 var mod_dir_path := ""
