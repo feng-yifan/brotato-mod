@@ -181,7 +181,7 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 		# 5. 升级黑名单 CheckButton
 		var blacklist_cb := CheckButton.new()
 		blacklist_cb.name = "Blacklist_%s" % entry["key"]
-		blacklist_cb.text = "黑名单"
+		blacklist_cb.text = "升级黑名单"
 		blacklist_cb.connect("toggled", self, "_on_blacklist_toggled", [entry["key"]])
 		row.add_child(blacklist_cb)
 
@@ -205,19 +205,19 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 		# 7-9. 限制升级 / 限制商店 / 限制箱子
 		var limit_upgrade_cb := CheckButton.new()
 		limit_upgrade_cb.name = "LimitUpg_%s" % entry["key"]
-		limit_upgrade_cb.text = "升级"
+		limit_upgrade_cb.text = "限制升级"
 		limit_upgrade_cb.connect("toggled", self, "_on_limit_toggled", [entry["key"], "limit_upgrade"])
 		row.add_child(limit_upgrade_cb)
 
 		var limit_shop_cb := CheckButton.new()
 		limit_shop_cb.name = "LimitShop_%s" % entry["key"]
-		limit_shop_cb.text = "商店"
+		limit_shop_cb.text = "限制商店"
 		limit_shop_cb.connect("toggled", self, "_on_limit_toggled", [entry["key"], "limit_shop"])
 		row.add_child(limit_shop_cb)
 
 		var limit_chest_cb := CheckButton.new()
 		limit_chest_cb.name = "LimitChest_%s" % entry["key"]
-		limit_chest_cb.text = "箱子"
+		limit_chest_cb.text = "限制箱子"
 		limit_chest_cb.connect("toggled", self, "_on_limit_toggled", [entry["key"], "limit_chest"])
 		row.add_child(limit_chest_cb)
 
@@ -282,10 +282,6 @@ func _refresh() -> void:
 		ref["limit_upgrade_cb"].pressed = limit_upgrade
 		ref["limit_shop_cb"].pressed = limit_shop
 		ref["limit_chest_cb"].pressed = limit_chest
-
-		var pri_idx: int = priority.find(stat_key)
-		ref["up_btn"].disabled = (pri_idx <= 0)
-		ref["down_btn"].disabled = (pri_idx < 0 or pri_idx >= priority.size() - 1)
 
 		_apply_row_color(ref, mode, value, cur_val)
 

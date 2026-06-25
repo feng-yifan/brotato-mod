@@ -284,10 +284,17 @@ static func _is_weapon_item(item_data) -> bool:
 # 解析武器最终 action: 自身规则 > 类别规则 > 默认 manual.
 # 返回 "manual" / "skip" / "" (空=无规则, 使用物品规则)
 static func _resolve_weapon_action(item_data, context: Dictionary) -> String:
-	var wid: String = ItemU.get_id(item_data)
+	# 使用 weapon_id (升级链 ID) 匹配规则, 与武器 Tab 的去重逻辑一致
+	var cid: String = ""
+	if item_data is Resource:
+		cid = item_data.get("weapon_id")
+	elif item_data is Dictionary:
+		cid = item_data.get("weapon_id")
+	if cid == "" or cid == null:
+		return ""
 	# 武器自身规则
 	var weapon_rules: Dictionary = context.get("weapon_rules", {})
-	var sr = weapon_rules.get(wid, "")
+	var sr = weapon_rules.get(cid, "")
 	if sr == "manual" or sr == "skip":
 		return sr
 
