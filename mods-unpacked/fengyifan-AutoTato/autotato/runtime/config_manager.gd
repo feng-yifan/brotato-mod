@@ -107,6 +107,10 @@ static func load_config(defaults: Dictionary):
 
 	# 6. 递归合并 defaults 补缺字段
 	var merged: Dictionary = _merge_with_defaults(parse_result.result, defaults, 0)
+
+	# 7. 后处理: 补齐 threshold 条目的缺失字段 (v6 新增 limit_* / min_tier 等)
+	_migrate_thresholds(merged, defaults)
+
 	_log("config 加载成功 path=%s 顶层 keys=%d" % [path, merged.size()])
 	return merged
 
@@ -211,6 +215,42 @@ static func _rename_atomic(tmp_path: String, real_path: String) -> bool:
 		_log_error("rename 失败 tmp=%s real=%s err=%d" % [tmp_path, real_path, err])
 		return false
 	return true
+
+
+# ============================================================================
+# v6 阈值字段补齐
+# ----------------------------------------------------------------------------
+# 用户手动添加的阈值条目可能缺少 v6 新增的 limit_* / min_tier 字段.
+# 遍历所有阈值条目, 用 DEFAULT_THRESHOLD_ENTRY 补齐缺失字段.
+# 默认阈值条目 (DEFAULT_THRESHOLDS 中的 5 个) 以 defaults 为准.
+# ============================================================================
+
+const DEFAULT_THRESHOLD_ENTRY := {
+	"mode": "unlimited",
+	"value": 0,
+	"min_tier": -1,
+	"limit_upgrade": true,
+	"limit_shop": true,
+	"limit_chest": false,
+}
+
+static func _migrate_thresholds(merged: Dictionary, defaults: Dictionary) -> void:
+	if not merged.has("thresholds"):
+		return
+	var ths = merged["thresholds"]
+	if typeof(ths) != TYPE_DICTIONARY:
+		return
+
+	var defaults_ths = defaults.get("thresholds", {})
+	for stat_key in ths:
+		var entry = ths[stat_key]
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		# 优先用 defaults 中的条目 (含默认预设值), 否则用 DEFAULT_THRESHOLD_ENTRY
+		var reference = defaults_ths.get(stat_key, DEFAULT_THRESHOLD_ENTRY)
+		for f in ["min_tier", "limit_upgrade", "limit_shop", "limit_chest"]:
+			if not entry.has(f):
+				entry[f] = reference.get(f, DEFAULT_THRESHOLD_ENTRY[f])
 
 
 # ============================================================================
