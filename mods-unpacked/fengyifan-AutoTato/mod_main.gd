@@ -84,6 +84,7 @@ const PATH_P4_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/
 # P5.1 UI 配置面板入口
 # ----------------------------------------------------------------------------
 const PATH_HOOK_INGAME_MAIN_MENU := "ui/menus/ingame/ingame_main_menu.gd"
+const PATH_HOOK_SHOP_ITEM       := "ui/menus/shop/shop_item.gd"
 const PATH_CONFIG_PANEL_GD       := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/config_panel.gd"
 const PATH_GENERAL_TAB_GD        := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/general_tab.gd"
 const PATH_ITEMS_TAB_GD       := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/items_tab.gd"
@@ -230,6 +231,10 @@ func install_script_extensions() -> void:
 	# P5.1: 暂停菜单 UI 入口 hook
 	ModLoaderMod.install_script_extension(
 		extensions_dir_path.plus_file(PATH_HOOK_INGAME_MAIN_MENU)
+	)
+	# P5.4-ext: 商店物品规则按钮 (替换 BanButton)
+	ModLoaderMod.install_script_extension(
+		extensions_dir_path.plus_file(PATH_HOOK_SHOP_ITEM)
 	)
 
 
