@@ -107,12 +107,37 @@ static func decide(item_data, rule: Dictionary, context: Dictionary):
 	var item_id: String = ItemU.get_id(item_data)
 	var is_crate: bool = bool(context.get("is_crate", false))
 
-	# Step 1: 取并校验 action (非法/缺字段回落 manual)
+	# Step 0: 如果是武器, 解析武器规则的最终 action
+	var is_weapon: bool = _is_weapon_item(item_data)
+	var weapon_action: String = ""
+	if is_weapon:
+		weapon_action = _resolve_weapon_action(item_data, context)
+
+	# Step 1: 取并校验 action
 	var action: String = _validate_action(rule, is_crate)
 
-	# Step 2: manual -> 不干预
+	# v6: 如果是武器且有武器规则 (非 follow_set_rule 或类别规则覆盖), 以武器规则为准
+	if is_weapon and weapon_action != "":
+		action = weapon_action
+
+	# Step 1.5: 武器 min_tier 过滤 (全局设置, 低于此 tier 直接跳过)
+	if is_weapon:
+		var wt: int = ItemU.get_tier(item_data)
+		var w_min: int = int(context.get("weapon_min_tier", 1))
+		if w_min > 0 and wt < w_min:
+			return Result.make(item_id, Result.STATE_SKIPPED, "武器 tier=%d < 最低=%d, 直接跳过" % [wt, w_min])
+
+	# Step 2: manual -> 不干预; 但武器手动+预算不足→跳过
 	if action == SHOP_MANUAL or action == CHEST_MANUAL:
-		# 注: SHOP_MANUAL == CHEST_MANUAL == "manual", 这里同分支处理
+		if is_weapon and not is_crate:
+			# 武器手动但预算墙不通过 → 直接跳过
+			var price: int = ItemU.get_base_value(item_data)
+			var gold: int = int(context.get("gold", 0))
+			var mgb: int = int(context.get("min_gold_balance", 0))
+			var ipt: int = int(context.get("item_price_threshold", 0))
+			var budget: Dictionary = _check_budget_wall(price, gold, mgb, ipt)
+			if not bool(budget.get("pass", false)):
+				return Result.make(item_id, Result.STATE_SKIPPED, "武器手动但预算不足, 按跳过处理: " + String(budget.get("reason", "")))
 		return Result.make(item_id, Result.STATE_MANUAL, "动作配置为 manual, 不干预")
 
 	# Step 3: reject -> 直接 SKIPPED
@@ -244,7 +269,56 @@ static func _check_budget_wall(
 	return {"pass": true, "reason": "预算墙通过"}
 
 
-# 日志包装 (ModLoaderLog autoload 直接可用).
+# ============================================================================
+# v6: 武器规则 helpers
+# ============================================================================
+
+# 判断 item_data 是否为武器 (有 weapon_id 字段)
+static func _is_weapon_item(item_data) -> bool:
+	if item_data == null:
+		return false
+	var wid = ItemU._field(item_data, "weapon_id", null)
+	return wid != null and typeof(wid) == TYPE_STRING and wid != ""
+
+
+# 解析武器最终 action: 自身规则 > 类别规则 > 默认 manual.
+# 返回 "manual" / "skip" / "" (空=无规则, 使用物品规则)
+static func _resolve_weapon_action(item_data, context: Dictionary) -> String:
+	var wid: String = ItemU.get_id(item_data)
+	# 武器自身规则
+	var weapon_rules: Dictionary = context.get("weapon_rules", {})
+	var sr = weapon_rules.get(wid, "")
+	if sr == "manual" or sr == "skip":
+		return sr
+
+	# 类别规则: 收集武器所有 set, 全部 skip 才 skip, 否则 manual
+	var weapon_cat_rules: Dictionary = context.get("weapon_category_rules", {})
+	var sets = ItemU._field(item_data, "sets", [])
+	if typeof(sets) != TYPE_ARRAY or sets.size() == 0:
+		return ""
+
+	var all_skip := true
+	var has_rule := false
+	for s in sets:
+		var sid: String = ""
+		if s is Resource:
+			sid = s.get("my_id")
+		elif s is Dictionary:
+			sid = s.get("my_id")
+		if sid == "":
+			continue
+		var cr = weapon_cat_rules.get(sid, "manual")
+		if cr == "manual":
+			all_skip = false
+			has_rule = true
+		elif cr == "skip":
+			has_rule = true
+	if has_rule and all_skip:
+		return "skip"
+	return "manual"
+
+
+# 日志包装
 static func _log(msg: String) -> void:
 	if typeof(ModLoaderLog) != TYPE_NIL:
 		ModLoaderLog.info(msg, LOG_NAME)
