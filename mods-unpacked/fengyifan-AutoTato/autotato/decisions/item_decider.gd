@@ -214,18 +214,14 @@ static func _check_at_limit(item_data, player_index: int) -> bool:
 
 # 阈值反转检查.
 # 仅当 action ∈ {SHOP_GET, CHEST_TAKE, SHOP_LOCK_UNTIL_CURSED} 时调 Gate.
-# cursed_only 跳过 (用户期望等到诅咒版, 不应被阈值闸门拦下).
-# reject / manual 已在更早返回, 不会进到这里.
-#
-# 返回 Dictionary {should_reject: bool, reason: String}
+# v6.1: shop_action/chest_action 控制每个 stat 是否参与阈值检查.
+#   shop → 只检查 shop_action=="limit" 的 stat
+#   chest → 只检查 chest_action=="limit" 的 stat
 static func _check_threshold_reject(item_data, action: String, context: Dictionary) -> Dictionary:
 	var skip_result: Dictionary = {"should_reject": false, "reason": "动作不参与阈值反转"}
 
-	# cursed_only 不参与
 	if action == SHOP_CURSED_ONLY or action == CHEST_CURSED_ONLY:
 		return skip_result
-
-	# 仅 get / take / lock_until_cursed 进入阈值检查
 	if action != SHOP_GET and action != CHEST_TAKE and action != SHOP_LOCK_UNTIL_CURSED:
 		return skip_result
 
@@ -235,8 +231,23 @@ static func _check_threshold_reject(item_data, action: String, context: Dictiona
 	if threshold_config.size() == 0:
 		return skip_result
 
+	var is_crate: bool = bool(context.get("is_crate", false))
+	var action_field: String = "chest_action" if is_crate else "shop_action"
+
+	# 构建过滤后的 threshold_config: 只保留 *_action=="limit" 的 stat
+	var filtered_config := {}
+	for sk in threshold_config:
+		var cfg = threshold_config[sk]
+		if typeof(cfg) != TYPE_DICTIONARY:
+			continue
+		if str(cfg.get(action_field, "none")) == "limit":
+			filtered_config[sk] = cfg
+
+	if filtered_config.size() == 0:
+		return {"should_reject": false, "reason": "无 stat 配为 limit, 不参与阈值反转"}
+
 	var player_index: int = int(context.get("player_index", 0))
-	var gate_result: Dictionary = Gate.should_reject_by_threshold(item_data, threshold_config, player_index)
+	var gate_result: Dictionary = Gate.should_reject_by_threshold(item_data, filtered_config, player_index)
 	return {
 		"should_reject": bool(gate_result.get("should_reject", false)),
 		"reason": String(gate_result.get("reason", "")),

@@ -218,23 +218,25 @@ static func _rename_atomic(tmp_path: String, real_path: String) -> bool:
 
 
 # ============================================================================
-# v6 阈值字段补齐
+# v6.1 阈值字段迁移: limit_* → *_action
 # ----------------------------------------------------------------------------
-# 用户手动添加的阈值条目可能缺少 v6 新增的 limit_* / min_tier 字段.
-# 遍历所有阈值条目, 用 DEFAULT_THRESHOLD_ENTRY 补齐缺失字段.
-# 默认阈值条目 (DEFAULT_THRESHOLDS 中的 5 个) 以 defaults 为准.
+# Old: {limit_upgrade: bool, limit_shop: bool, limit_chest: bool}
+#      + upgrade.stat_blacklist: [string]
+# New: {upgrade_action: "forbid"|"limit"|"none",
+#       shop_action: "limit"|"none", chest_action: "limit"|"none"}
 # ============================================================================
 
-const DEFAULT_THRESHOLD_ENTRY := {
+const _MIGRATE_DEFAULT_ENTRY := {
 	"mode": "unlimited",
 	"value": 0,
 	"min_tier": -1,
-	"limit_upgrade": true,
-	"limit_shop": true,
-	"limit_chest": false,
+	"upgrade_action": "none",
+	"shop_action": "none",
+	"chest_action": "none",
 }
 
 static func _migrate_thresholds(merged: Dictionary, defaults: Dictionary) -> void:
+	# 1. 补齐阈值条目的缺失字段 (v6 fields)
 	if not merged.has("thresholds"):
 		return
 	var ths = merged["thresholds"]
@@ -242,15 +244,43 @@ static func _migrate_thresholds(merged: Dictionary, defaults: Dictionary) -> voi
 		return
 
 	var defaults_ths = defaults.get("thresholds", {})
+
 	for stat_key in ths:
 		var entry = ths[stat_key]
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
-		# 优先用 defaults 中的条目 (含默认预设值), 否则用 DEFAULT_THRESHOLD_ENTRY
-		var reference = defaults_ths.get(stat_key, DEFAULT_THRESHOLD_ENTRY)
-		for f in ["min_tier", "limit_upgrade", "limit_shop", "limit_chest"]:
+
+		# 迁移: limit_* → *_action (如果旧字段存在而新字段不存在)
+		if entry.has("limit_upgrade") and not entry.has("upgrade_action"):
+			entry["upgrade_action"] = "limit" if bool(entry["limit_upgrade"]) else "none"
+		if entry.has("limit_shop") and not entry.has("shop_action"):
+			entry["shop_action"] = "limit" if bool(entry["limit_shop"]) else "none"
+		if entry.has("limit_chest") and not entry.has("chest_action"):
+			entry["chest_action"] = "limit" if bool(entry["limit_chest"]) else "none"
+
+		# 补齐缺失的 v6.1 字段
+		var reference = defaults_ths.get(stat_key, _MIGRATE_DEFAULT_ENTRY)
+		for f in ["min_tier", "upgrade_action", "shop_action", "chest_action"]:
 			if not entry.has(f):
-				entry[f] = reference.get(f, DEFAULT_THRESHOLD_ENTRY[f])
+				entry[f] = reference.get(f, _MIGRATE_DEFAULT_ENTRY[f])
+
+		# 清理旧字段
+		entry.erase("limit_upgrade")
+		entry.erase("limit_shop")
+		entry.erase("limit_chest")
+
+	# 2. 迁移 upgrade.stat_blacklist → 各 threshold 条目的 upgrade_action=forbid
+	if merged.has("upgrade"):
+		var upg = merged["upgrade"]
+		if typeof(upg) == TYPE_DICTIONARY and upg.has("stat_blacklist"):
+			var bl = upg.get("stat_blacklist", [])
+			if typeof(bl) == TYPE_ARRAY:
+				for sk in bl:
+					if ths.has(sk):
+						var entry = ths[sk]
+						if typeof(entry) == TYPE_DICTIONARY:
+							entry["upgrade_action"] = "forbid"
+			upg.erase("stat_blacklist")
 
 
 # ============================================================================

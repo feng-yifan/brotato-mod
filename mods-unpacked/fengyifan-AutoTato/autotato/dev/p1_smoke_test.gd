@@ -248,10 +248,10 @@ func _test_7_multi_stat_full_threshold_rejected() -> void:
 	# 把 Medal 涉及的 5 个 stat 全部配 upper=0
 	# 主菜单 current=0, 0 >= 0 触达 -> 全部触达 -> 反转
 	context["threshold_config"] = {
-		"stat_max_hp":         {"mode": "upper", "value": 0},
-		"stat_percent_damage": {"mode": "upper", "value": 0},
-		"stat_armor":          {"mode": "upper", "value": 0},
-		"stat_speed":          {"mode": "upper", "value": 0},
+		"stat_max_hp":         {"mode": "upper", "value": 0, "shop_action": "limit"},
+		"stat_percent_damage": {"mode": "upper", "value": 0, "shop_action": "limit"},
+		"stat_armor":          {"mode": "upper", "value": 0, "shop_action": "limit"},
+		"stat_speed":          {"mode": "upper", "value": 0, "shop_action": "limit"},
 		"stat_crit_chance":    {"mode": "upper", "value": 0},
 	}
 

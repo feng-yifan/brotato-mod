@@ -33,30 +33,30 @@ const LOG_NAME       := "fengyifan-AutoTato:Bridge"
 const META_KEY       := "fengyifan-AutoTato:Bridge"
 const SCHEMA_VERSION := 6
 
-# 5 个用户共识预设阈值 — limit_upgrade/limit_shop 默认 true, limit_chest 默认 false
+# v6.1: limit_upgrade/shop/chest → upgrade_action/shop_action/chest_action (forbid/limit/none)
+#        stat_blacklist 移除, 合并到 upgrade_action=forbid
 const DEFAULT_THRESHOLDS := {
-	"stat_speed":           {"mode": "upper", "value": 20, "min_tier": -1, "limit_upgrade": true, "limit_shop": true, "limit_chest": false},
-	"stat_armor":           {"mode": "upper", "value": 10, "min_tier": -1, "limit_upgrade": true, "limit_shop": true, "limit_chest": false},
-	"stat_dodge":           {"mode": "upper", "value": 60, "min_tier": -1, "limit_upgrade": true, "limit_shop": true, "limit_chest": false},
-	"stat_hp_regeneration": {"mode": "upper", "value": 10, "min_tier": -1, "limit_upgrade": true, "limit_shop": true, "limit_chest": false},
-	"stat_crit_chance":     {"mode": "upper", "value": 100, "min_tier": -1, "limit_upgrade": true, "limit_shop": true, "limit_chest": false},
+	"stat_speed":           {"mode": "upper", "value": 20, "min_tier": -1, "upgrade_action": "limit", "shop_action": "limit", "chest_action": "none"},
+	"stat_armor":           {"mode": "upper", "value": 10, "min_tier": -1, "upgrade_action": "limit", "shop_action": "limit", "chest_action": "none"},
+	"stat_dodge":           {"mode": "upper", "value": 60, "min_tier": -1, "upgrade_action": "limit", "shop_action": "limit", "chest_action": "none"},
+	"stat_hp_regeneration": {"mode": "upper", "value": 10, "min_tier": -1, "upgrade_action": "limit", "shop_action": "limit", "chest_action": "none"},
+	"stat_crit_chance":     {"mode": "upper", "value": 100, "min_tier": -1, "upgrade_action": "limit", "shop_action": "limit", "chest_action": "none"},
 }
 
-# 默认阈值条目的完整字段 (用于 schema 迁移补缺)
 const DEFAULT_THRESHOLD_ENTRY := {
 	"mode": "unlimited",
 	"value": 0,
 	"min_tier": -1,
-	"limit_upgrade": true,
-	"limit_shop": true,
-	"limit_chest": false,
+	"upgrade_action": "none",
+	"shop_action": "none",
+	"chest_action": "none",
 }
 
 # 白名单
 const VALID_GENERAL_KEYS := ["min_gold_balance", "item_price_threshold", "reroll_budget", "auto_start_wave", "keep_running"]
 const VALID_UPGRADE_CONFIG_KEYS := ["min_tier", "quality_first", "ignore_blacklist_on_stuck"]
 const VALID_WEAPON_CONFIG_KEYS := ["min_tier"]
-const VALID_THRESHOLD_FIELDS := ["mode", "value", "min_tier", "limit_upgrade", "limit_shop", "limit_chest"]
+const VALID_THRESHOLD_FIELDS := ["mode", "value", "min_tier", "upgrade_action", "shop_action", "chest_action"]
 
 
 # ============================================================================
@@ -117,7 +117,6 @@ func _load_defaults() -> Dictionary:
 			"min_tier": -1,
 			"quality_first": false,
 			"ignore_blacklist_on_stuck": false,
-			"stat_blacklist": [],
 			"stat_priority": [],
 		},
 	}
@@ -282,7 +281,7 @@ func set_weapon_config(key: String, value) -> void:
 	_persist()
 
 
-# 设置阈值 mode + value, 同时保留已有 limit_* / min_tier 字段
+# 设置阈值 mode + value, 同时保留已有 *_action / min_tier 字段
 func set_threshold(stat_key: String, mode: String, value: int) -> void:
 	if stat_key == null or stat_key == "":
 		_log_warn("set_threshold 跳过: stat_key 为空")
@@ -292,14 +291,14 @@ func set_threshold(stat_key: String, mode: String, value: int) -> void:
 	var existing := (_config["thresholds"].get(stat_key, {}) as Dictionary).duplicate()
 	existing["mode"] = mode
 	existing["value"] = value
-	for f in ["min_tier", "limit_upgrade", "limit_shop", "limit_chest"]:
+	for f in ["min_tier", "upgrade_action", "shop_action", "chest_action"]:
 		if not existing.has(f):
 			existing[f] = DEFAULT_THRESHOLD_ENTRY[f]
 	_config["thresholds"][stat_key] = existing
 	_persist()
 
 
-# 设置阈值条目的单个字段 (limit_upgrade / limit_shop / limit_chest / min_tier 等)
+# 设置阈值条目的单个字段 (upgrade_action / shop_action / ches_action / min_tier 等)
 func set_threshold_field(stat_key: String, field: String, value) -> void:
 	if stat_key == null or stat_key == "":
 		return
@@ -344,14 +343,11 @@ func set_upgrade_config(key: String, value) -> void:
 	_persist()
 
 
-# 批量设置 upgrade 数组字段 (stat_blacklist / stat_priority)
-func set_upgrade_array(key: String, value: Array) -> void:
-	if key != "stat_blacklist" and key != "stat_priority":
-		_log_warn("set_upgrade_array 跳过: 未知 key '%s'" % key)
-		return
+# 批量设置 upgrade stat_priority 数组
+func set_upgrade_priority(value: Array) -> void:
 	if not _config.has("upgrade"):
 		_config["upgrade"] = {}
-	_config["upgrade"][key] = value.duplicate()
+	_config["upgrade"]["stat_priority"] = value.duplicate()
 	_persist()
 
 
@@ -486,7 +482,6 @@ func _build_upgrade_context(player_index: int) -> Dictionary:
 		"player_index": player_index,
 		"current_danger": Danger.get_danger_level(),
 		"threshold_config": (_config.get("thresholds", {}) as Dictionary).duplicate(true),
-		"stat_blacklist": (upg.get("stat_blacklist", []) as Array).duplicate(),
 		"stat_priority": (upg.get("stat_priority", []) as Array).duplicate(),
 	}
 

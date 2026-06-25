@@ -1,23 +1,30 @@
 extends Control
 
 # ============================================================================
-# AutoTato — Thresholds Tab (v6 阈值编辑器)
+# AutoTato — Thresholds Tab (v6.1 阈值编辑器)
 # ----------------------------------------------------------------------------
 # 行结构:
-#   [属性名称] [当前值] [模式▾] [数值] [☐黑名单] [⬆️⬇️] [限升] [限店] [限箱]
+#   [属性名称] [值] [模式▾] [数值] [升级▾] [⬆⬇] [商店▾] [箱子▾]
+#
+# 下拉语义:
+#   升级▾ = upgrade_action: 禁止/限制/不限
+#   商店▾ = shop_action:    限制/不限
+#   箱子▾ = chest_action:   限制/不限
 # ============================================================================
 
 const LOG_NAME := "fengyifan-AutoTato:ThresholdsTab"
-
-const MODE_UNLIMITED := "unlimited"
-const MODE_UPPER     := "upper"
-const MODE_LOWER     := "lower"
 
 const MODE_OPTIONS := [
 	["unlimited", "不限"],
 	["upper",     "上限"],
 	["lower",     "下限"],
 ]
+
+const UPGRADE_ACTIONS := ["forbid", "limit", "none"]
+const UPGRADE_LABELS  := ["禁止",   "限制",  "不限"]
+
+const LIMIT_OPTIONS := ["limit", "none"]
+const LIMIT_LABELS  := ["限制", "不限"]
 
 const SEP_EVERY := 3
 
@@ -133,10 +140,8 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 
 	for i in stat_rows.size():
 		var entry: Dictionary = stat_rows[i]
-
 		if entry.get("sep", false):
-			var sep := HSeparator.new()
-			content.add_child(sep)
+			content.add_child(HSeparator.new())
 			continue
 
 		var row := HBoxContainer.new()
@@ -144,7 +149,7 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 		row.rect_min_size.y = 26
 		content.add_child(row)
 
-		# 1. 属性名称 — tr_key 触发 Godot auto_translate
+		# 1. 属性名称
 		var name_label := Label.new()
 		name_label.text = entry["tr_key"]
 		name_label.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -160,16 +165,16 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 		value_label.valign = Label.VALIGN_CENTER
 		row.add_child(value_label)
 
-		# 3. 模式 OptionButton
+		# 3. 模式
 		var mode_btn := OptionButton.new()
 		mode_btn.name = "Mode_%s" % entry["key"]
-		mode_btn.rect_min_size.x = 65
+		mode_btn.rect_min_size.x = 60
 		for opt in MODE_OPTIONS:
 			mode_btn.add_item(opt[1])
 		mode_btn.connect("item_selected", self, "_on_mode_changed", [entry["key"]])
 		row.add_child(mode_btn)
 
-		# 4. 数值输入框
+		# 4. 数值
 		var value_edit := LineEdit.new()
 		value_edit.name = "Value_%s" % entry["key"]
 		value_edit.rect_min_size.x = 40
@@ -178,60 +183,53 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 		value_edit.connect("text_changed", self, "_on_value_changed", [entry["key"]])
 		row.add_child(value_edit)
 
-		# 5. 升级黑名单 CheckButton
-		var blacklist_cb := CheckButton.new()
-		blacklist_cb.name = "Blacklist_%s" % entry["key"]
-		blacklist_cb.text = "升级黑名单"
-		blacklist_cb.connect("toggled", self, "_on_blacklist_toggled", [entry["key"]])
-		row.add_child(blacklist_cb)
+		# 5. 升级下拉 (禁止/限制/不限)
+		var upg_opt := OptionButton.new()
+		upg_opt.name = "Upg_%s" % entry["key"]
+		upg_opt.rect_min_size.x = 60
+		for lb in UPGRADE_LABELS:
+			upg_opt.add_item(lb)
+		upg_opt.connect("item_selected", self, "_on_upgrade_action_changed", [entry["key"]])
+		row.add_child(upg_opt)
 
-		# 6. 优先级上下移动按钮
+		# 6. 优先级上下箭头 (不使用 flat, 让 vanilla 主题渲染 hover)
 		var up_btn := Button.new()
-		up_btn.name = "Up_%s" % entry["key"]
+		up_btn.name = "UpBtn_%s" % entry["key"]
 		up_btn.text = "⬆"
-		up_btn.flat = true
 		up_btn.rect_min_size = Vector2(22, 22)
 		up_btn.connect("pressed", self, "_on_priority_up", [entry["key"]])
 		row.add_child(up_btn)
 
 		var down_btn := Button.new()
-		down_btn.name = "Down_%s" % entry["key"]
+		down_btn.name = "DownBtn_%s" % entry["key"]
 		down_btn.text = "⬇"
-		down_btn.flat = true
 		down_btn.rect_min_size = Vector2(22, 22)
 		down_btn.connect("pressed", self, "_on_priority_down", [entry["key"]])
 		row.add_child(down_btn)
 
-		# 7-9. 限制升级 / 限制商店 / 限制箱子
-		var limit_upgrade_cb := CheckButton.new()
-		limit_upgrade_cb.name = "LimitUpg_%s" % entry["key"]
-		limit_upgrade_cb.text = "限制升级"
-		limit_upgrade_cb.connect("toggled", self, "_on_limit_toggled", [entry["key"], "limit_upgrade"])
-		row.add_child(limit_upgrade_cb)
+		# 7. 商店下拉 (限制/不限)
+		var shop_opt := OptionButton.new()
+		shop_opt.name = "Shop_%s" % entry["key"]
+		shop_opt.rect_min_size.x = 60
+		for lb in LIMIT_LABELS:
+			shop_opt.add_item(lb)
+		shop_opt.connect("item_selected", self, "_on_shop_action_changed", [entry["key"]])
+		row.add_child(shop_opt)
 
-		var limit_shop_cb := CheckButton.new()
-		limit_shop_cb.name = "LimitShop_%s" % entry["key"]
-		limit_shop_cb.text = "限制商店"
-		limit_shop_cb.connect("toggled", self, "_on_limit_toggled", [entry["key"], "limit_shop"])
-		row.add_child(limit_shop_cb)
-
-		var limit_chest_cb := CheckButton.new()
-		limit_chest_cb.name = "LimitChest_%s" % entry["key"]
-		limit_chest_cb.text = "限制箱子"
-		limit_chest_cb.connect("toggled", self, "_on_limit_toggled", [entry["key"], "limit_chest"])
-		row.add_child(limit_chest_cb)
+		# 8. 箱子下拉 (限制/不限)
+		var chest_opt := OptionButton.new()
+		chest_opt.name = "Chest_%s" % entry["key"]
+		chest_opt.rect_min_size.x = 60
+		for lb in LIMIT_LABELS:
+			chest_opt.add_item(lb)
+		chest_opt.connect("item_selected", self, "_on_chest_action_changed", [entry["key"]])
+		row.add_child(chest_opt)
 
 		_row_refs[entry["key"]] = {
-			"name_label": name_label,
-			"value_label": value_label,
-			"mode_btn": mode_btn,
-			"value_edit": value_edit,
-			"blacklist_cb": blacklist_cb,
-			"up_btn": up_btn,
-			"down_btn": down_btn,
-			"limit_upgrade_cb": limit_upgrade_cb,
-			"limit_shop_cb": limit_shop_cb,
-			"limit_chest_cb": limit_chest_cb,
+			"name_label": name_label, "value_label": value_label,
+			"mode_btn": mode_btn, "value_edit": value_edit,
+			"upg_opt": upg_opt, "shop_opt": shop_opt, "chest_opt": chest_opt,
+			"up_btn": up_btn, "down_btn": down_btn,
 			"container": row,
 		}
 
@@ -245,12 +243,10 @@ func _refresh() -> void:
 
 	var bridge = _get_bridge()
 	var thresholds := {}
-	var blacklist: Array = []
 	var priority: Array = []
 	if bridge:
 		thresholds = bridge.get_thresholds()
 		var upg = bridge.get_upgrade_config()
-		blacklist = upg.get("stat_blacklist", [])
 		priority = upg.get("stat_priority", [])
 
 	var player_index := 0
@@ -259,33 +255,36 @@ func _refresh() -> void:
 		var ref = _row_refs[stat_key]
 		var th = thresholds.get(stat_key, {})
 
-		var mode: String = th.get("mode", MODE_UNLIMITED)
+		var mode: String = th.get("mode", "unlimited")
 		var value: int = th.get("value", 0)
-		var limit_upgrade: bool = bool(th.get("limit_upgrade", true))
-		var limit_shop: bool = bool(th.get("limit_shop", true))
-		var limit_chest: bool = bool(th.get("limit_chest", false))
+		var upg_action: String = th.get("upgrade_action", "none")
+		var shop_action: String = th.get("shop_action", "none")
+		var chest_action: String = th.get("chest_action", "none")
 		var cur_val := _get_current_stat(stat_key, player_index)
 
 		ref["value_label"].text = str(cur_val)
 
-		var mode_idx := 0
-		for m in MODE_OPTIONS.size():
-			if MODE_OPTIONS[m][0] == mode:
-				mode_idx = m
-				break
-		ref["mode_btn"].select(mode_idx)
-
+		_select_by_value(ref["mode_btn"], mode, MODE_OPTIONS)
 		ref["value_edit"].text = str(value)
-		ref["value_edit"].editable = (mode != MODE_UNLIMITED)
+		ref["value_edit"].editable = (mode != "unlimited")
 
-		ref["blacklist_cb"].pressed = blacklist.has(stat_key)
-		ref["limit_upgrade_cb"].pressed = limit_upgrade
-		ref["limit_shop_cb"].pressed = limit_shop
-		ref["limit_chest_cb"].pressed = limit_chest
+		_select_by_value(ref["upg_opt"], upg_action, UPGRADE_ACTIONS, UPGRADE_LABELS)
+		_select_by_value(ref["shop_opt"], shop_action, LIMIT_OPTIONS, LIMIT_LABELS)
+		_select_by_value(ref["chest_opt"], chest_action, LIMIT_OPTIONS, LIMIT_LABELS)
 
 		_apply_row_color(ref, mode, value, cur_val)
 
 	_refreshing = false
+
+
+func _select_by_value(opt: OptionButton, val: String, actions: Array, labels = null) -> void:
+	if labels == null:
+		labels = actions
+	for i in actions.size():
+		if actions[i] == val:
+			opt.select(i)
+			return
+	opt.select(0)
 
 
 func _get_current_stat(stat_key: String, player_index: int) -> int:
@@ -304,18 +303,16 @@ func _get_bridge():
 
 func _apply_row_color(ref: Dictionary, mode: String, threshold_val: int, cur_val: int) -> void:
 	var reached := false
-	if mode == MODE_UPPER and cur_val >= threshold_val:
+	if mode == "upper" and cur_val >= threshold_val:
 		reached = true
-	elif mode == MODE_LOWER and cur_val < threshold_val:
+	elif mode == "lower" and cur_val < threshold_val:
 		reached = true
-
 	var color := Color.white
 	if reached:
 		if ProgressData and ProgressData.settings:
 			color = ProgressData.settings.color_negative
 		else:
 			color = Color(1.0, 0.35, 0.35, 1.0)
-
 	ref["value_label"].add_color_override("font_color", color)
 	ref["name_label"].add_color_override("font_color", color)
 
@@ -337,7 +334,7 @@ func _on_mode_changed(idx: int, stat_key: String) -> void:
 	var old_th = bridge.get_threshold(stat_key)
 	var value: int = int(old_th.get("value", 0))
 	bridge.set_threshold(stat_key, mode_key, value)
-	ref["value_edit"].editable = (mode_key != MODE_UNLIMITED)
+	ref["value_edit"].editable = (mode_key != "unlimited")
 	var cur_val := _get_current_stat(stat_key, 0)
 	_apply_row_color(ref, mode_key, value, cur_val)
 
@@ -361,29 +358,28 @@ func _on_value_changed(_new_text: String, stat_key: String) -> void:
 	_apply_row_color(ref, mode_key, value, cur_val)
 
 
-func _on_blacklist_toggled(pressed: bool, stat_key: String) -> void:
+func _on_upgrade_action_changed(idx: int, stat_key: String) -> void:
 	if _refreshing:
 		return
 	var bridge = _get_bridge()
-	if bridge == null:
-		return
-	var upg = bridge.get_upgrade_config()
-	var bl = upg.get("stat_blacklist", [])
-	if pressed:
-		if not bl.has(stat_key):
-			bl.append(stat_key)
-	else:
-		bl.erase(stat_key)
-	bridge.set_upgrade_array("stat_blacklist", bl)
+	if bridge:
+		bridge.set_threshold_field(stat_key, "upgrade_action", UPGRADE_ACTIONS[idx])
 
 
-func _on_limit_toggled(pressed: bool, stat_key: String, field: String) -> void:
+func _on_shop_action_changed(idx: int, stat_key: String) -> void:
 	if _refreshing:
 		return
 	var bridge = _get_bridge()
-	if bridge == null:
+	if bridge:
+		bridge.set_threshold_field(stat_key, "shop_action", LIMIT_OPTIONS[idx])
+
+
+func _on_chest_action_changed(idx: int, stat_key: String) -> void:
+	if _refreshing:
 		return
-	bridge.set_threshold_field(stat_key, field, pressed)
+	var bridge = _get_bridge()
+	if bridge:
+		bridge.set_threshold_field(stat_key, "chest_action", LIMIT_OPTIONS[idx])
 
 
 func _on_priority_up(stat_key: String) -> void:
@@ -403,16 +399,13 @@ func _move_priority(stat_key: String, delta: int) -> void:
 	if idx < 0:
 		priority.append(stat_key)
 		idx = priority.size() - 1
-
 	var new_idx: int = idx + delta
 	if new_idx < 0 or new_idx >= priority.size():
 		return
-
 	var tmp = priority[idx]
 	priority[idx] = priority[new_idx]
 	priority[new_idx] = tmp
-
-	bridge.set_upgrade_array("stat_priority", priority)
+	bridge.set_upgrade_priority(priority)
 	_refresh()
 
 
@@ -420,11 +413,8 @@ func _on_header_pressed(group_key: String) -> void:
 	var block = _group_blocks.get(group_key)
 	if block == null:
 		return
-	var expanded: bool = block["expanded"]
-	expanded = not expanded
-	block["expanded"] = expanded
-	var content: VBoxContainer = block["content_vbox"]
-	content.visible = expanded
+	block["expanded"] = not block["expanded"]
+	block["content_vbox"].visible = block["expanded"]
 	var header: Button = block["header_btn"]
 	var title: String = "主要属性" if group_key == "primary" else "次要属性"
-	header.text = ("▼ " if expanded else "▶ ") + title
+	header.text = ("▼ " if block["expanded"] else "▶ ") + title

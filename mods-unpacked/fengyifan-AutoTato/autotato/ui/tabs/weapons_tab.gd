@@ -395,23 +395,23 @@ func _apply_card_text(cid: String, own_label: Label, result_label: Label, self_r
 	var action: String = _resolve_weapon_action(cid, self_rules, set_rules)
 	var sr = self_rules.get(cid, "")
 
-	# 第一行: 自身规则
+	# 第一行: 自身规则 — 使用淡色
 	var own_text: String
 	var own_color: Color
 	match sr:
 		"manual":
 			own_text = "手动"
-			own_color = COLOR_MANUAL
+			own_color = Color(1.0, 0.5, 0.5, 0.7)
 		"skip":
 			own_text = "跳过"
-			own_color = COLOR_SKIP
+			own_color = Color(0.45, 1.0, 0.55, 0.7)
 		_:
 			own_text = "受类别控制"
-			own_color = COLOR_FOLLOW
+			own_color = Color(1, 1, 1, 0.3)
 	own_label.text = own_text
 	own_label.modulate = own_color
 
-	# 第二行: 生效结果
+	# 第二行: 生效结果 — 使用纯色
 	var result_text: String
 	var result_color: Color
 	match action:
@@ -423,7 +423,7 @@ func _apply_card_text(cid: String, own_label: Label, result_label: Label, self_r
 			result_color = COLOR_MANUAL
 
 	if sr == "" or sr == "follow_set_rule":
-		result_label.modulate = COLOR_FOLLOW
+		result_label.modulate = Color(1, 1, 1, 0.35)
 	else:
 		result_label.modulate = result_color
 	result_label.text = result_text
