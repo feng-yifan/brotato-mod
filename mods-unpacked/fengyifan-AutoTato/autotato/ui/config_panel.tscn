@@ -60,23 +60,6 @@ margin_right = -4.0
 margin_bottom = -4.0
 script = ExtResource( 2 )
 
-[node name="PlaceholderLabel" type="Label" parent="PanelContainer/VBoxContainer/AutoTatoTabs/通用"]
-anchor_right = 1.0
-anchor_bottom = 1.0
-text = "P5.1 UI 入口已就绪.
-
-P5.2+ 待实现:
-- 物品规则编辑器
-- 阈值编辑器
-- 通用配置
-- i18n 双语
-- 手柄完善
-
-当前默认全部 MANUAL, 玩家手动操作 (等同 vanilla 行为)."
-align = 1
-valign = 1
-autowrap = true
-
 [node name="物品" type="Control" parent="PanelContainer/VBoxContainer/AutoTatoTabs"]
 anchor_right = 1.0
 anchor_bottom = 1.0

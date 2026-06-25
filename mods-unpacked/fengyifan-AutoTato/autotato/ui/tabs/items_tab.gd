@@ -19,8 +19,8 @@ extends Control
 #     → 每格 Button 包裹 icon + 规则文字
 #
 # 弹窗:
-#   保存: 两 action 都是 manual → 从 _dirty_rules 删除此 item
-#         否则 → _dirty_rules[item_id] = {shop_action, chest_action}
+#   保存: 两 action 都是 manual → Bridge.remove_item_rule
+#         否则 → Bridge.set_item_rule, 自动持久化到磁盘.
 #         然后刷新卡片显示
 #   取消: 关闭弹窗, 不修改任何数据
 #   点击弹窗外灰色遮罩 → 取消
@@ -28,8 +28,7 @@ extends Control
 # ESC 竞态: 弹窗打开时禁用 ConfigPanel._input, 关闭时恢复.
 # 与 PauseMenu/ConfigPanel 的 ESC 竞态修复模式一致.
 #
-# P5.2 仅在内存操作 _dirty_rules. 关闭面板数据丢弃.
-# P5.4 在弹窗保存处加 Bridge.set_item_rule / remove_item_rule 写回.
+# P5.4: 弹窗保存直接调用 Bridge.set_item_rule / remove_item_rule, 自动持久化.
 # ============================================================================
 
 const LOG_NAME := "fengyifan-AutoTato:ItemsTab"
@@ -81,7 +80,8 @@ enum TypeFilter { ALL = 0, UNIQUE = 1, LIMITED = 2, OTHER = 3 }
 const TYPE_FILTER_NAMES := ["类型: 不限", "类型: 独特", "类型: 限制", "类型: 其他"]
 
 # ---- State ----
-var _dirty_rules: Dictionary = {}
+# _rules: Bridge.get_item_rules() 的本地缓存, 用于卡片渲染. 不持有写权限.
+var _rules: Dictionary = {}
 # _card_refs: item_id → {shop_label, chest_label, button}
 var _card_refs: Dictionary = {}
 # _tier_blocks: tier_value → {header, grid, header_label, arrow, items}
@@ -116,6 +116,15 @@ func _ready() -> void:
 	_refresh()
 
 
+# 弹窗打开时 ConfigPanel._input 已被禁用, items_tab 的 _input 正常触发.
+# 在此拦截 ESC 关闭弹窗.
+func _input(event: InputEvent) -> void:
+	if _popup and _popup.visible and event.is_action_released("ui_cancel"):
+		_popup.hide()
+		_enable_config_input()
+		get_tree().set_input_as_handled()
+
+
 # 切换到其他 Tab 时自动关闭弹窗, 同时恢复 ConfigPanel 输入
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_VISIBILITY_CHANGED and not visible:
@@ -128,9 +137,8 @@ func _notification(what: int) -> void:
 # Data access
 # ========================================================================
 
-func _load_bridge():
-	var Bridge = load("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
-	return Bridge.get_global()
+func _get_bridge():
+	return Engine.get_meta("fengyifan-AutoTato:Bridge")
 
 
 func _load_all_items() -> Array:
@@ -220,11 +228,11 @@ func _build_static_ui() -> void:
 func _refresh() -> void:
 	_clear()
 
-	var bridge = _load_bridge()
+	var bridge = _get_bridge()
 	if bridge:
-		_dirty_rules = bridge.get_item_rules()
+		_rules = bridge.get_item_rules()
 	else:
-		_dirty_rules = {}
+		_rules = {}
 
 	var all_items: Array = _load_all_items()
 	if all_items.empty():
@@ -423,7 +431,7 @@ func _build_card(grid: GridContainer, item) -> void:
 
 
 func _apply_card_style(item_id: String, shop_label: Label, chest_label: Label, btn: Button) -> void:
-	var rule = _dirty_rules.get(item_id, {})
+	var rule = _rules.get(item_id, {})
 	var sa = rule.get("shop_action", "manual")
 	var ca = rule.get("chest_action", "manual")
 
@@ -526,14 +534,14 @@ func _matches_filters(item_id: String, item) -> bool:
 	# Shop action filter
 	if _filter_shop > 0:
 		var expected_shop: String = SHOP_ACTIONS[_filter_shop - 1][0]
-		var rule = _dirty_rules.get(item_id, {})
+		var rule = _rules.get(item_id, {})
 		if rule.get("shop_action", "manual") != expected_shop:
 			return false
 
 	# Chest action filter
 	if _filter_chest > 0:
 		var expected_chest: String = CHEST_ACTIONS[_filter_chest - 1][0]
-		var rule = _dirty_rules.get(item_id, {})
+		var rule = _rules.get(item_id, {})
 		if rule.get("chest_action", "manual") != expected_chest:
 			return false
 
@@ -562,7 +570,7 @@ func _on_card_pressed(item_id: String) -> void:
 
 	_popup_title.text = item_data.get_name_text()
 
-	var rule = _dirty_rules.get(item_id, {})
+	var rule = _rules.get(item_id, {})
 	_set_option_by_value(_shop_option, rule.get("shop_action", "manual"), SHOP_ACTIONS)
 	_set_option_by_value(_chest_option, rule.get("chest_action", "manual"), CHEST_ACTIONS)
 
@@ -701,16 +709,15 @@ func _on_popup_save() -> void:
 	var ca = CHEST_ACTIONS[chest_idx][0] if chest_idx >= 0 and chest_idx < CHEST_ACTIONS.size() else "manual"
 
 	if sa == "manual" and ca == "manual":
-		_dirty_rules.erase(_editing_item_id)
+		_rules.erase(_editing_item_id)
+		var bridge = _get_bridge()
+		if bridge:
+			bridge.remove_item_rule(_editing_item_id)
 	else:
-		_dirty_rules[_editing_item_id] = {"shop_action": sa, "chest_action": ca}
-
-	# P5.4: var bridge = _load_bridge()
-	# P5.4: if bridge:
-	# P5.4: 	if sa == "manual" and ca == "manual":
-	# P5.4: 		bridge.remove_item_rule(_editing_item_id)
-	# P5.4: 	else:
-	# P5.4: 		bridge.set_item_rule(_editing_item_id, _dirty_rules[_editing_item_id])
+		_rules[_editing_item_id] = {"shop_action": sa, "chest_action": ca}
+		var bridge = _get_bridge()
+		if bridge:
+			bridge.set_item_rule(_editing_item_id, {"shop_action": sa, "chest_action": ca})
 
 	_popup.hide()
 	_enable_config_input()

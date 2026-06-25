@@ -1,7 +1,7 @@
 extends Control
 
 # ============================================================================
-# AutoTato — Config Panel (P5.1 UI 入口)
+# AutoTato — Config Panel (P5.x UI 根节点)
 # ----------------------------------------------------------------------------
 # 配置面板根节点 (Control, pause_mode = PAUSE_MODE_PROCESS), 结构:
 #   ConfigPanel (Control, pause_mode = PAUSE_MODE_PROCESS)
@@ -9,11 +9,12 @@ extends Control
 #   └── PanelContainer (全屏, anchor 0-1)
 #        └── VBoxContainer
 #             ├── HeaderHBox (TitleLabel + CloseButton ✕)
-#             └── AutoTatoTabs (TabContainer, 预留 P5.2+)
-#                  └── 通用 (general_tab.gd, P5.1 仅占位 Label)
+#             └── AutoTatoTabs (TabContainer)
+#                  ├── 通用 (general_tab.gd)   — 自动化开关
+#                  ├── 物品 (items_tab.gd)      — 物品规则编辑器
+#                  └── 阈值 (thresholds_tab.gd) — 阈值编辑器
 #
-# P5.1: 全屏面板 + CJK 字体 + 仅标题栏 CloseButton.
-# 底部 Save/Cancel 按钮已移除, P5.4 另行设计保存机制.
+# tab_changed → 调用目标 Tab 的 _refresh() 刷新游戏数据.
 # pause_mode 在 scene 上声明 PAUSE_MODE_PROCESS, 不依赖 INHERIT.
 # 由 hook 端 (ingame_main_menu.gd) 懒加载 + show/hide.
 # ============================================================================
@@ -21,16 +22,26 @@ extends Control
 signal close_requested
 
 onready var _close_button: Button = $PanelContainer/VBoxContainer/HeaderHBox/CloseButton
+onready var _tabs: TabContainer = $PanelContainer/VBoxContainer/AutoTatoTabs
 
 
 func _ready() -> void:
 	_close_button.connect("pressed", self, "_on_close")
+	_tabs.connect("tab_changed", self, "_on_tab_changed")
 	_apply_vanilla_theme()
 	hide()  # 默认隐, 由 hook 显式 show
 
 
 func _on_close() -> void:
 	emit_signal("close_requested")
+
+
+func _on_tab_changed(tab: int) -> void:
+	# 切到某个 Tab 时调用该 Tab 的 _refresh() 刷新游戏数据.
+	# 例如玩家在商店中购买了物品后切回阈值 Tab, 当前 stat 值需要更新.
+	var child: Control = _tabs.get_child(tab) as Control
+	if child and child.has_method("_refresh"):
+		child._refresh()
 
 
 func _input(event: InputEvent) -> void:
