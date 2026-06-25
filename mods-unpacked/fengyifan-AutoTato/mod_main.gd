@@ -111,6 +111,7 @@ const _PRELOAD_CONFIG_PANEL_GD  := preload("res://mods-unpacked/fengyifan-AutoTa
 const _PRELOAD_GENERAL_TAB_GD   := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/general_tab.gd")
 const _PRELOAD_ITEMS_TAB_GD     := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/items_tab.gd")
 const _PRELOAD_THRESHOLDS_TAB_GD := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/thresholds_tab.gd")
+const _PRELOAD_WEAPONS_TAB_GD    := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/weapons_tab.gd")
 
 # ----------------------------------------------------------------------------
 # 烟雾测试开关（开发期自检用，默认全部关闭）
