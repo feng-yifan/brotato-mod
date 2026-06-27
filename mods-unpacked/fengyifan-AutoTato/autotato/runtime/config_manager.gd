@@ -108,8 +108,8 @@ static func load_config(defaults: Dictionary):
 	# 6. 递归合并 defaults 补缺字段
 	var merged: Dictionary = _merge_with_defaults(parse_result.result, defaults, 0)
 
-	# 7. 后处理: 补齐 threshold 条目的缺失字段 (v6 新增 limit_* / min_tier 等)
-	_migrate_thresholds(merged, defaults)
+	# 7. 后处理: v6/v6.1 → v7 schema 迁移
+	_migrate_v6_to_v7(merged)
 
 	_log("config 加载成功 path=%s 顶层 keys=%d" % [path, merged.size()])
 	return merged
@@ -218,69 +218,97 @@ static func _rename_atomic(tmp_path: String, real_path: String) -> bool:
 
 
 # ============================================================================
-# v6.1 阈值字段迁移: limit_* → *_action
+# v7 迁移: 阈值纯化 + 上下文分离
 # ----------------------------------------------------------------------------
-# Old: {limit_upgrade: bool, limit_shop: bool, limit_chest: bool}
-#      + upgrade.stat_blacklist: [string]
-# New: {upgrade_action: "forbid"|"limit"|"none",
-#       shop_action: "limit"|"none", chest_action: "limit"|"none"}
+# v6.1 → v7:
+#   thresholds[stat]: 移除 upgrade_action/shop_action/chest_action/min_tier → 只留 mode+value
+#   upgrade_action="forbid" → upgrade.forbid_stats
+#   shop_action="limit" (any) → general.shop_respect_thresholds=true
+#   chest_action="limit" (any) → general.chest_respect_thresholds=true
+#   upgrade.ignore_blacklist_on_stuck → ignore_forbid_on_stuck
 # ============================================================================
 
-const _MIGRATE_DEFAULT_ENTRY := {
-	"mode": "unlimited",
-	"value": 0,
-	"min_tier": -1,
-	"upgrade_action": "none",
-	"shop_action": "none",
-	"chest_action": "none",
-}
+static func _migrate_v6_to_v7(merged: Dictionary) -> void:
+	# 如果已经是 v7+, 跳过
+	if int(merged.get("version", 0)) >= 7:
+		return
 
-static func _migrate_thresholds(merged: Dictionary, defaults: Dictionary) -> void:
-	# 1. 补齐阈值条目的缺失字段 (v6 fields)
+	# Step 1: 提取 per-stat upgrade_action="forbid" → upgrade.forbid_stats
+	_migrate_forbid_to_list(merged)
+
+	# Step 2: 推断 shop_respect_thresholds / chest_respect_thresholds
+	_migrate_shop_chest_respect(merged)
+
+	# Step 3: 清理 threshold 条目 — 只保留 mode + value
+	_migrate_clean_thresholds(merged)
+
+	# Step 4: 重命名 upgrade 字段
+	if merged.has("upgrade") and typeof(merged["upgrade"]) == TYPE_DICTIONARY:
+		var upg = merged["upgrade"]
+		if upg.has("ignore_blacklist_on_stuck"):
+			upg["ignore_forbid_on_stuck"] = upg["ignore_blacklist_on_stuck"]
+			upg.erase("ignore_blacklist_on_stuck")
+		upg.erase("stat_blacklist")  # 清理 v6 残留
+
+	# Step 5: Bump version
+	merged["version"] = 7
+	_log("v6/v6.1 → v7 迁移完成")
+
+
+static func _migrate_forbid_to_list(merged: Dictionary) -> void:
 	if not merged.has("thresholds"):
 		return
 	var ths = merged["thresholds"]
 	if typeof(ths) != TYPE_DICTIONARY:
 		return
+	var forbid_list := []
+	for sk in ths:
+		var entry = ths[sk]
+		if typeof(entry) == TYPE_DICTIONARY and str(entry.get("upgrade_action", "")) == "forbid":
+			forbid_list.append(sk)
+	if forbid_list.size() > 0:
+		if not merged.has("upgrade") or typeof(merged["upgrade"]) != TYPE_DICTIONARY:
+			merged["upgrade"] = {}
+		merged["upgrade"]["forbid_stats"] = forbid_list
+		_log("已迁移 forbid_stats: %s" % str(forbid_list))
 
-	var defaults_ths = defaults.get("thresholds", {})
 
-	for stat_key in ths:
-		var entry = ths[stat_key]
+static func _migrate_shop_chest_respect(merged: Dictionary) -> void:
+	if not merged.has("thresholds"):
+		return
+	var ths = merged["thresholds"]
+	if typeof(ths) != TYPE_DICTIONARY:
+		return
+	var any_shop_limit := false
+	var any_chest_limit := false
+	for sk in ths:
+		var entry = ths[sk]
 		if typeof(entry) != TYPE_DICTIONARY:
 			continue
+		if str(entry.get("shop_action", "")) == "limit":
+			any_shop_limit = true
+		if str(entry.get("chest_action", "")) == "limit":
+			any_chest_limit = true
+	if not merged.has("general") or typeof(merged["general"]) != TYPE_DICTIONARY:
+		merged["general"] = {}
+	merged["general"]["shop_respect_thresholds"] = any_shop_limit
+	merged["general"]["chest_respect_thresholds"] = any_chest_limit
 
-		# 迁移: limit_* → *_action (如果旧字段存在而新字段不存在)
-		if entry.has("limit_upgrade") and not entry.has("upgrade_action"):
-			entry["upgrade_action"] = "limit" if bool(entry["limit_upgrade"]) else "none"
-		if entry.has("limit_shop") and not entry.has("shop_action"):
-			entry["shop_action"] = "limit" if bool(entry["limit_shop"]) else "none"
-		if entry.has("limit_chest") and not entry.has("chest_action"):
-			entry["chest_action"] = "limit" if bool(entry["limit_chest"]) else "none"
 
-		# 补齐缺失的 v6.1 字段
-		var reference = defaults_ths.get(stat_key, _MIGRATE_DEFAULT_ENTRY)
-		for f in ["min_tier", "upgrade_action", "shop_action", "chest_action"]:
-			if not entry.has(f):
-				entry[f] = reference.get(f, _MIGRATE_DEFAULT_ENTRY[f])
-
-		# 清理旧字段
-		entry.erase("limit_upgrade")
-		entry.erase("limit_shop")
-		entry.erase("limit_chest")
-
-	# 2. 迁移 upgrade.stat_blacklist → 各 threshold 条目的 upgrade_action=forbid
-	if merged.has("upgrade"):
-		var upg = merged["upgrade"]
-		if typeof(upg) == TYPE_DICTIONARY and upg.has("stat_blacklist"):
-			var bl = upg.get("stat_blacklist", [])
-			if typeof(bl) == TYPE_ARRAY:
-				for sk in bl:
-					if ths.has(sk):
-						var entry = ths[sk]
-						if typeof(entry) == TYPE_DICTIONARY:
-							entry["upgrade_action"] = "forbid"
-			upg.erase("stat_blacklist")
+static func _migrate_clean_thresholds(merged: Dictionary) -> void:
+	if not merged.has("thresholds"):
+		return
+	var ths = merged["thresholds"]
+	if typeof(ths) != TYPE_DICTIONARY:
+		return
+	for sk in ths:
+		var entry = ths[sk]
+		if typeof(entry) != TYPE_DICTIONARY:
+			continue
+		var clean := {}
+		clean["mode"] = str(entry.get("mode", "unlimited"))
+		clean["value"] = int(entry.get("value", 0))
+		ths[sk] = clean
 
 
 # ============================================================================

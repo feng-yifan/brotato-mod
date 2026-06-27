@@ -1,15 +1,12 @@
 extends Control
 
 # ============================================================================
-# AutoTato — Thresholds Tab (v6.1 阈值编辑器)
+# AutoTato — Thresholds Tab (v7 纯阈值编辑器)
 # ----------------------------------------------------------------------------
-# 行结构:
-#   [属性名称] [值] [模式▾] [数值] [升级▾] [⬆⬇] [商店▾] [箱子▾]
+# 行结构 (v7 简化):
+#   [属性名称] [当前值] [模式▾] [数值]
 #
-# 下拉语义:
-#   升级▾ = upgrade_action: 禁止/限制/不限
-#   商店▾ = shop_action:    限制/不限
-#   箱子▾ = chest_action:   限制/不限
+# 每行只承载条件表达式 (mode + value), per-context action 移到各自的 tab.
 # ============================================================================
 
 const LOG_NAME := "fengyifan-AutoTato:ThresholdsTab"
@@ -19,12 +16,6 @@ const MODE_OPTIONS := [
 	["upper",     "上限"],
 	["lower",     "下限"],
 ]
-
-const UPGRADE_ACTIONS := ["forbid", "limit", "none"]
-const UPGRADE_LABELS  := ["禁止",   "限制",  "不限"]
-
-const LIMIT_OPTIONS := ["limit", "none"]
-const LIMIT_LABELS  := ["限制", "不限"]
 
 const SEP_EVERY := 3
 
@@ -183,53 +174,9 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 		value_edit.connect("text_changed", self, "_on_value_changed", [entry["key"]])
 		row.add_child(value_edit)
 
-		# 5. 升级下拉 (禁止/限制/不限)
-		var upg_opt := OptionButton.new()
-		upg_opt.name = "Upg_%s" % entry["key"]
-		upg_opt.rect_min_size.x = 60
-		for lb in UPGRADE_LABELS:
-			upg_opt.add_item(lb)
-		upg_opt.connect("item_selected", self, "_on_upgrade_action_changed", [entry["key"]])
-		row.add_child(upg_opt)
-
-		# 6. 优先级上下箭头 (不使用 flat, 让 vanilla 主题渲染 hover)
-		var up_btn := Button.new()
-		up_btn.name = "UpBtn_%s" % entry["key"]
-		up_btn.text = "⬆"
-		up_btn.rect_min_size = Vector2(22, 22)
-		up_btn.connect("pressed", self, "_on_priority_up", [entry["key"]])
-		row.add_child(up_btn)
-
-		var down_btn := Button.new()
-		down_btn.name = "DownBtn_%s" % entry["key"]
-		down_btn.text = "⬇"
-		down_btn.rect_min_size = Vector2(22, 22)
-		down_btn.connect("pressed", self, "_on_priority_down", [entry["key"]])
-		row.add_child(down_btn)
-
-		# 7. 商店下拉 (限制/不限)
-		var shop_opt := OptionButton.new()
-		shop_opt.name = "Shop_%s" % entry["key"]
-		shop_opt.rect_min_size.x = 60
-		for lb in LIMIT_LABELS:
-			shop_opt.add_item(lb)
-		shop_opt.connect("item_selected", self, "_on_shop_action_changed", [entry["key"]])
-		row.add_child(shop_opt)
-
-		# 8. 箱子下拉 (限制/不限)
-		var chest_opt := OptionButton.new()
-		chest_opt.name = "Chest_%s" % entry["key"]
-		chest_opt.rect_min_size.x = 60
-		for lb in LIMIT_LABELS:
-			chest_opt.add_item(lb)
-		chest_opt.connect("item_selected", self, "_on_chest_action_changed", [entry["key"]])
-		row.add_child(chest_opt)
-
 		_row_refs[entry["key"]] = {
 			"name_label": name_label, "value_label": value_label,
 			"mode_btn": mode_btn, "value_edit": value_edit,
-			"upg_opt": upg_opt, "shop_opt": shop_opt, "chest_opt": chest_opt,
-			"up_btn": up_btn, "down_btn": down_btn,
 			"container": row,
 		}
 
@@ -243,11 +190,8 @@ func _refresh() -> void:
 
 	var bridge = _get_bridge()
 	var thresholds := {}
-	var priority: Array = []
 	if bridge:
 		thresholds = bridge.get_thresholds()
-		var upg = bridge.get_upgrade_config()
-		priority = upg.get("stat_priority", [])
 
 	var player_index := 0
 
@@ -257,9 +201,6 @@ func _refresh() -> void:
 
 		var mode: String = th.get("mode", "unlimited")
 		var value: int = th.get("value", 0)
-		var upg_action: String = th.get("upgrade_action", "none")
-		var shop_action: String = th.get("shop_action", "none")
-		var chest_action: String = th.get("chest_action", "none")
 		var cur_val := _get_current_stat(stat_key, player_index)
 
 		ref["value_label"].text = str(cur_val)
@@ -268,20 +209,21 @@ func _refresh() -> void:
 		ref["value_edit"].text = str(value)
 		ref["value_edit"].editable = (mode != "unlimited")
 
-		_select_by_value(ref["upg_opt"], upg_action, UPGRADE_ACTIONS, UPGRADE_LABELS)
-		_select_by_value(ref["shop_opt"], shop_action, LIMIT_OPTIONS, LIMIT_LABELS)
-		_select_by_value(ref["chest_opt"], chest_action, LIMIT_OPTIONS, LIMIT_LABELS)
-
 		_apply_row_color(ref, mode, value, cur_val)
 
 	_refreshing = false
 
 
+# v7 修复: 支持 2D 数组 (如 MODE_OPTIONS = [["unlimited","不限"], ...])
 func _select_by_value(opt: OptionButton, val: String, actions: Array, labels = null) -> void:
-	if labels == null:
-		labels = actions
 	for i in actions.size():
-		if actions[i] == val:
+		var item = actions[i]
+		var key: String
+		if typeof(item) == TYPE_ARRAY:
+			key = str(item[0])
+		else:
+			key = str(item)
+		if key == val:
 			opt.select(i)
 			return
 	opt.select(0)
@@ -356,57 +298,6 @@ func _on_value_changed(_new_text: String, stat_key: String) -> void:
 	bridge.set_threshold(stat_key, mode_key, value)
 	var cur_val := _get_current_stat(stat_key, 0)
 	_apply_row_color(ref, mode_key, value, cur_val)
-
-
-func _on_upgrade_action_changed(idx: int, stat_key: String) -> void:
-	if _refreshing:
-		return
-	var bridge = _get_bridge()
-	if bridge:
-		bridge.set_threshold_field(stat_key, "upgrade_action", UPGRADE_ACTIONS[idx])
-
-
-func _on_shop_action_changed(idx: int, stat_key: String) -> void:
-	if _refreshing:
-		return
-	var bridge = _get_bridge()
-	if bridge:
-		bridge.set_threshold_field(stat_key, "shop_action", LIMIT_OPTIONS[idx])
-
-
-func _on_chest_action_changed(idx: int, stat_key: String) -> void:
-	if _refreshing:
-		return
-	var bridge = _get_bridge()
-	if bridge:
-		bridge.set_threshold_field(stat_key, "chest_action", LIMIT_OPTIONS[idx])
-
-
-func _on_priority_up(stat_key: String) -> void:
-	_move_priority(stat_key, -1)
-
-
-func _on_priority_down(stat_key: String) -> void:
-	_move_priority(stat_key, 1)
-
-
-func _move_priority(stat_key: String, delta: int) -> void:
-	var bridge = _get_bridge()
-	if bridge == null:
-		return
-	var priority = bridge.get_upgrade_config().get("stat_priority", [])
-	var idx: int = priority.find(stat_key)
-	if idx < 0:
-		priority.append(stat_key)
-		idx = priority.size() - 1
-	var new_idx: int = idx + delta
-	if new_idx < 0 or new_idx >= priority.size():
-		return
-	var tmp = priority[idx]
-	priority[idx] = priority[new_idx]
-	priority[new_idx] = tmp
-	bridge.set_upgrade_priority(priority)
-	_refresh()
 
 
 func _on_header_pressed(group_key: String) -> void:

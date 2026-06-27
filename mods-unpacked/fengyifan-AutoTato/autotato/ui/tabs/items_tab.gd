@@ -8,8 +8,9 @@ extends Control
 # 点击卡片弹出弹窗配置该物品的 shop_action / chest_action。
 #
 # 筛选栏:
-#   顶部 3 个 OptionButton 实现 AND 筛选 — 类型(不限/独特/限制/其他)
+#   顶部 OptionButton 实现 AND 筛选 — 类型(不限/独特/限制/其他)
 #   商店规则(不限+5) × 箱子规则(不限+4). 任意非"不限"即生效.
+#   + v7: 商店受阈值影响 / 箱子受阈值影响 CheckButton
 #
 # 数据流:
 #   面板加载 → _refresh()
@@ -105,6 +106,8 @@ var _popup_title: Label = null
 var _groups: VBoxContainer = null
 var _filter_shop_opt: OptionButton = null
 var _filter_chest_opt: OptionButton = null
+var _shop_respect_cb: CheckButton = null    # v7
+var _chest_respect_cb: CheckButton = null    # v7
 
 
 # ========================================================================
@@ -201,6 +204,21 @@ func _build_static_ui() -> void:
 	_filter_chest_opt.connect("item_selected", self, "_on_filter_chest_changed")
 	filter_bar.add_child(_filter_chest_opt)
 
+	# v7: 阈值开关
+	_shop_respect_cb = CheckButton.new()
+	_shop_respect_cb.name = "ShopRespectCheck"
+	_shop_respect_cb.text = "商店受阈值影响"
+	_shop_respect_cb.focus_mode = Control.FOCUS_NONE
+	_shop_respect_cb.connect("toggled", self, "_on_shop_respect_toggled")
+	filter_bar.add_child(_shop_respect_cb)
+
+	_chest_respect_cb = CheckButton.new()
+	_chest_respect_cb.name = "ChestRespectCheck"
+	_chest_respect_cb.text = "箱子受阈值影响"
+	_chest_respect_cb.focus_mode = Control.FOCUS_NONE
+	_chest_respect_cb.connect("toggled", self, "_on_chest_respect_toggled")
+	filter_bar.add_child(_chest_respect_cb)
+
 	# ---- Scroll area ----
 	var scroll := ScrollContainer.new()
 	scroll.name = "ScrollContainer"
@@ -231,6 +249,9 @@ func _refresh() -> void:
 	var bridge = _get_bridge()
 	if bridge:
 		_rules = bridge.get_item_rules()
+		var gen = bridge.get_general()
+		_shop_respect_cb.pressed = bool(gen.get("shop_respect_thresholds", true))
+		_chest_respect_cb.pressed = bool(gen.get("chest_respect_thresholds", false))
 	else:
 		_rules = {}
 
@@ -499,6 +520,19 @@ func _on_filter_chest_changed(idx: int) -> void:
 	_apply_filters()
 
 
+# v7: 阈值开关
+func _on_shop_respect_toggled(pressed: bool) -> void:
+	var bridge = _get_bridge()
+	if bridge:
+		bridge.set_general("shop_respect_thresholds", pressed)
+
+
+func _on_chest_respect_toggled(pressed: bool) -> void:
+	var bridge = _get_bridge()
+	if bridge:
+		bridge.set_general("chest_respect_thresholds", pressed)
+
+
 # 筛选只控制卡片可见性. 不动 Tier header/grid 的折叠状态.
 func _apply_filters() -> void:
 	for tier_value in _tier_blocks:
@@ -681,11 +715,13 @@ func _ensure_popup() -> void:
 
 	var cancel_btn := Button.new()
 	cancel_btn.text = "取消"
+	cancel_btn.focus_mode = Control.FOCUS_NONE
 	cancel_btn.connect("pressed", self, "_on_popup_cancel")
 	btn_hbox.add_child(cancel_btn)
 
 	var save_btn := Button.new()
 	save_btn.text = "保存"
+	save_btn.focus_mode = Control.FOCUS_NONE
 	save_btn.connect("pressed", self, "_on_popup_save")
 	btn_hbox.add_child(save_btn)
 

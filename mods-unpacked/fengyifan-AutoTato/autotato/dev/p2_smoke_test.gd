@@ -313,7 +313,6 @@ func _test_10_threshold_override_blocks() -> void:
 	b.remove_threshold("stat_crit_chance")
 	# stat_dodge / stat_hp_regeneration 不在 Medal 涉及的 stat 内, 留着无影响
 	b.set_threshold("stat_max_hp", "upper", 0)
-	b.set_threshold_field("stat_max_hp", "shop_action", "limit")  # v6.1: 非预设 stat 默认 none, 需显式打开
 
 	b.set_item_rule("item_medal", {"shop_action": "get"})
 	var r = b.decide_shop_item(medal_res, 1000)

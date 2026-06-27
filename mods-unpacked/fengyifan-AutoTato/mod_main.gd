@@ -72,6 +72,7 @@ const PATH_P3_SMOKE_TEST    := "res://mods-unpacked/fengyifan-AutoTato/autotato/
 # P3.5 Hook 层文件路径 (升级面板)
 # ----------------------------------------------------------------------------
 const PATH_HOOK_UPGRADES_UI := "ui/menus/ingame/upgrades_ui.gd"
+const PATH_HOOK_UPGRADES_UI_PC := "ui/menus/ingame/upgrades_ui_player_container.gd"
 const PATH_P3_5_SMOKE_TEST  := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p3_5_smoke_test.gd"
 
 # ----------------------------------------------------------------------------
@@ -89,8 +90,10 @@ const PATH_CONFIG_PANEL_GD       := "res://mods-unpacked/fengyifan-AutoTato/auto
 const PATH_GENERAL_TAB_GD        := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/general_tab.gd"
 const PATH_ITEMS_TAB_GD       := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/items_tab.gd"
 const PATH_THRESHOLDS_TAB_GD  := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/thresholds_tab.gd"
+const PATH_WEAPONS_TAB_GD      := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/weapons_tab.gd"
+const PATH_UPGRADE_TAB_GD      := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/upgrade_tab.gd"
 const PATH_P5_1_SMOKE_TEST       := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p5_1_smoke_test.gd"
-const PATH_P2_V6_SMOKE_TEST      := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p2_v6_smoke_test.gd"
+const PATH_P2_V7_SMOKE_TEST      := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p2_v6_smoke_test.gd"
 
 # preload 一遍所有文件，强制 Godot 在 mod 加载阶段解析它们
 # 写错路径或语法错误会在这里直接报错，不会拖到运行期
@@ -113,6 +116,7 @@ const _PRELOAD_GENERAL_TAB_GD   := preload("res://mods-unpacked/fengyifan-AutoTa
 const _PRELOAD_ITEMS_TAB_GD     := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/items_tab.gd")
 const _PRELOAD_THRESHOLDS_TAB_GD := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/thresholds_tab.gd")
 const _PRELOAD_WEAPONS_TAB_GD    := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/weapons_tab.gd")
+const _PRELOAD_UPGRADE_TAB_GD    := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/upgrade_tab.gd")
 
 # ----------------------------------------------------------------------------
 # 烟雾测试开关（开发期自检用，默认全部关闭）
@@ -131,7 +135,7 @@ const DEV_RUN_P3_SMOKE := false
 const DEV_RUN_P3_5_SMOKE := false
 const DEV_RUN_P4_SMOKE := false
 const DEV_RUN_P5_1_SMOKE := false
-const DEV_RUN_P2_V6_SMOKE := false
+const DEV_RUN_P2_V7_SMOKE := false
 
 # 各子目录路径在 _init() 里组装，避免每个 install 调用都重复写一遍前缀
 var mod_dir_path := ""
@@ -142,6 +146,7 @@ var translations_dir_path := ""
 # Hook 层（P3 任务）通过 AT_Bridge.get_global() 拿到。
 # 不写 `: AT_Bridge` 类型注解，因为 Godot 3 解析期可能还未注册 class_name。
 var bridge
+
 
 
 # ----------------------------------------------------------------------------
@@ -179,7 +184,7 @@ func _ready() -> void:
 	var run_p3_5 := DEV_RUN_P3_5_SMOKE or OS.has_environment("AUTOTATO_P3_5_SMOKE")
 	var run_p4 := DEV_RUN_P4_SMOKE or OS.has_environment("AUTOTATO_P4_SMOKE")
 	var run_p5_1 := DEV_RUN_P5_1_SMOKE or OS.has_environment("AUTOTATO_P5_1_SMOKE")
-	var run_p2_v6 := DEV_RUN_P2_V6_SMOKE or OS.has_environment("AUTOTATO_P2_V6_SMOKE")
+	var run_p2_v6 := DEV_RUN_P2_V7_SMOKE or OS.has_environment("AUTOTATO_P2_V6_SMOKE")
 
 	if run_p0:
 		call_deferred("_run_smoke_test", PATH_P0_SMOKE_TEST, "P0")
@@ -196,8 +201,9 @@ func _ready() -> void:
 	if run_p5_1:
 		call_deferred("_run_smoke_test", PATH_P5_1_SMOKE_TEST, "P5.1")
 	if run_p2_v6:
-		call_deferred("_run_smoke_test", PATH_P2_V6_SMOKE_TEST, "P2v6")
+		call_deferred("_run_smoke_test", PATH_P2_V7_SMOKE_TEST, "P2v6")
 
+		
 
 # 通用烟雾脚本入口。脚本路径通过 path 传入，stage_label 仅用于日志区分
 func _run_smoke_test(path: String, stage_label: String) -> void:
@@ -227,6 +233,10 @@ func install_script_extensions() -> void:
 	# P3.5: 升级面板决策 hook
 	ModLoaderMod.install_script_extension(
 		extensions_dir_path.plus_file(PATH_HOOK_UPGRADES_UI)
+	)
+	# v7: 升级玩家容器扩展 (按钮防抖管理, 同步 reroll)
+	ModLoaderMod.install_script_extension(
+		extensions_dir_path.plus_file(PATH_HOOK_UPGRADES_UI_PC)
 	)
 	# P5.1: 暂停菜单 UI 入口 hook
 	ModLoaderMod.install_script_extension(

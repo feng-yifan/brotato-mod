@@ -43,9 +43,11 @@ var _refreshing := false
 
 var _popup: Popup = null
 var _editing_chain_id: String = ""
+var _editing_weapon_name: String = ""
 var _self_option: OptionButton = null
 var _set_rule_vbox: VBoxContainer = null
 var _min_tier_opt: OptionButton = null
+var _popup_title: Label = null
 
 
 func _ready() -> void:
@@ -79,7 +81,7 @@ func _build_ui() -> void:
 	_min_tier_opt.name = "MinTierOpt"
 	_min_tier_opt.rect_min_size.x = 80
 	for i in range(4):
-		_min_tier_opt.add_item("≥ %d" % (i + 1))
+		_min_tier_opt.add_item("0" if i == 0 else "≥ %d" % i)
 	_min_tier_opt.connect("item_selected", self, "_on_min_tier_changed")
 	settings.add_child(_min_tier_opt)
 
@@ -118,14 +120,14 @@ func _refresh() -> void:
 	var bridge = _get_bridge()
 	var self_rules: Dictionary = {}
 	var set_rules: Dictionary = {}
-	var min_tier: int = 1
+	var min_tier: int = 0
 	if bridge:
 		self_rules = bridge.get_weapon_rules()
 		set_rules = bridge.get_weapon_category_rules()
 		min_tier = bridge.get_weapon_min_tier()
 
 	if _min_tier_opt:
-		_min_tier_opt.select(max(min_tier - 1, 0))
+		_min_tier_opt.select(clamp(min_tier, 0, 3))
 
 	var chains: Dictionary = _load_weapon_chains()
 	if chains.empty():
@@ -221,6 +223,7 @@ func _build_set_block(set_data, chain_ids: Array, chains: Dictionary, self_rules
 	_groups.add_child(gap)
 
 	var header_btn := Button.new()
+	header_btn.focus_mode = Control.FOCUS_NONE
 	header_btn.flat = true
 	header_btn.size_flags_horizontal = SIZE_EXPAND_FILL
 	header_btn.rect_min_size = Vector2(0, 28)
@@ -395,38 +398,37 @@ func _apply_card_text(cid: String, own_label: Label, result_label: Label, self_r
 	var action: String = _resolve_weapon_action(cid, self_rules, set_rules)
 	var sr = self_rules.get(cid, "")
 
-	# 第一行: 自身规则 — 使用淡色
+	# 第一行: 自身规则 — 完整颜色
 	var own_text: String
 	var own_color: Color
 	match sr:
 		"manual":
 			own_text = "手动"
-			own_color = Color(1.0, 0.5, 0.5, 0.7)
+			own_color = COLOR_MANUAL
 		"skip":
 			own_text = "跳过"
-			own_color = Color(0.45, 1.0, 0.55, 0.7)
+			own_color = COLOR_SKIP
 		_:
 			own_text = "受类别控制"
-			own_color = Color(1, 1, 1, 0.3)
+			own_color = COLOR_FOLLOW
 	own_label.text = own_text
 	own_label.modulate = own_color
 
-	# 第二行: 生效结果 — 使用纯色
+	# 第二行: 生效结果 — 完整颜色
 	var result_text: String
 	var result_color: Color
 	match action:
 		"skip":
 			result_text = "跳过"
 			result_color = COLOR_SKIP
-		_:
+		"manual":
 			result_text = "手动"
 			result_color = COLOR_MANUAL
-
-	if sr == "" or sr == "follow_set_rule":
-		result_label.modulate = Color(1, 1, 1, 0.35)
-	else:
-		result_label.modulate = result_color
+		_:
+			result_text = "受类别控制"
+			result_color = COLOR_FOLLOW
 	result_label.text = result_text
+	result_label.modulate = result_color
 
 	# 边框也同步生效颜色
 	var btn = _card_refs[cid]["button"]
@@ -461,6 +463,16 @@ func _on_card_pressed(cid: String) -> void:
 	if bridge:
 		self_rules = bridge.get_weapon_rules()
 		set_rules = bridge.get_weapon_category_rules()
+
+	# 获取武器名称
+	var chains: Dictionary = _load_weapon_chains()
+	var weapon_data = chains.get(cid, {})
+	if weapon_data.has_method("get_name_text"):
+		_editing_weapon_name = weapon_data.get_name_text()
+	else:
+		_editing_weapon_name = cid
+
+	_popup_title.text = _editing_weapon_name
 
 	var sr: String = self_rules.get(cid, "follow_set_rule")
 	_set_opt(_self_option, sr, WEAPON_SELF_OPTIONS)
@@ -535,50 +547,65 @@ func _ensure_popup() -> void:
 	_popup.add_child(ctr)
 
 	var panel := PanelContainer.new()
-	panel.rect_min_size = Vector2(380, 340)
 	panel.mouse_filter = MOUSE_FILTER_STOP
 	ctr.add_child(panel)
 
 	var pv := VBoxContainer.new()
-	pv.add_constant_override("separation", 6)
+	pv.add_constant_override("separation", 8)
 	panel.add_child(pv)
 
 	var mg := MarginContainer.new()
-	mg.add_constant_override("margin_left", 16)
-	mg.add_constant_override("margin_right", 16)
-	mg.add_constant_override("margin_top", 10)
-	mg.add_constant_override("margin_bottom", 10)
+	mg.add_constant_override("margin_left", 20)
+	mg.add_constant_override("margin_right", 20)
+	mg.add_constant_override("margin_top", 16)
+	mg.add_constant_override("margin_bottom", 16)
 	var cv := VBoxContainer.new()
-	cv.add_constant_override("separation", 6)
+	cv.add_constant_override("separation", 12)
 	mg.add_child(cv)
 	pv.add_child(mg)
 
-	cv.add_child(_label("武器自身规则:"))
+	# Title
+	_popup_title = Label.new()
+	_popup_title.align = Label.ALIGN_CENTER
+	_popup_title.valign = Label.VALIGN_CENTER
+	_popup_title.rect_min_size = Vector2(0, 32)
+	cv.add_child(_popup_title)
+
+	cv.add_child(HSeparator.new())
+
+	# 武器自身规则 — 同一行
+	var self_row := HBoxContainer.new()
+	self_row.add_child(_label("武器自身规则"))
+
 	_self_option = OptionButton.new()
 	_self_option.size_flags_horizontal = SIZE_EXPAND_FILL
+	_self_option.focus_mode = Control.FOCUS_NONE
 	for pair in WEAPON_SELF_OPTIONS:
 		_self_option.add_item(pair[1])
-	cv.add_child(_self_option)
-	cv.add_child(HSeparator.new())
-	cv.add_child(_label("类别规则:"))
+	self_row.add_child(_self_option)
+	cv.add_child(self_row)
 
-	var sc := ScrollContainer.new()
-	sc.rect_min_size = Vector2(0, 120)
+	cv.add_child(HSeparator.new())
+	cv.add_child(_label("类别规则"))
+
+	# v7: 自适应高度, 无 ScrollContainer
 	_set_rule_vbox = VBoxContainer.new()
 	_set_rule_vbox.size_flags_horizontal = SIZE_EXPAND_FILL
 	_set_rule_vbox.add_constant_override("separation", 2)
-	sc.add_child(_set_rule_vbox)
-	cv.add_child(sc)
+	cv.add_child(_set_rule_vbox)
+
 	cv.add_child(HSeparator.new())
 
 	var bh := HBoxContainer.new()
 	bh.alignment = BoxContainer.ALIGN_END
 	var cb := Button.new()
 	cb.text = "取消"
+	cb.focus_mode = Control.FOCUS_NONE
 	cb.connect("pressed", self, "_on_popup_cancel")
 	bh.add_child(cb)
 	var sb := Button.new()
 	sb.text = "保存"
+	sb.focus_mode = Control.FOCUS_NONE
 	sb.connect("pressed", self, "_on_popup_save")
 	bh.add_child(sb)
 	cv.add_child(bh)
@@ -631,7 +658,7 @@ func _input(event: InputEvent) -> void:
 func _on_min_tier_changed(idx: int) -> void:
 	var bridge = _get_bridge()
 	if bridge:
-		bridge.set_weapon_config("min_tier", idx + 1)
+		bridge.set_weapon_config("min_tier", idx)
 	_refresh()
 
 

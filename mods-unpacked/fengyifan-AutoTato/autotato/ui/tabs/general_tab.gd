@@ -1,10 +1,10 @@
 extends Control
 
 # ============================================================================
-# AutoTato — General Tab (v6 通用配置)
+# AutoTato — General Tab (v7 通用配置)
 # ----------------------------------------------------------------------------
-# 自动化开关: 升级自动化 / 商店自动化
-# 预算设置: 最低金币保留 / 物品价格上限 / 刷新预算
+# 自动化设置: 商店自动化 / 升级自动化
+# 预算设置: 最低金币保留 / 物品价格上限 / 刷新金额上限
 # 行为设置: 自动开始下一关 / 失焦保持运行
 # ============================================================================
 
@@ -32,14 +32,18 @@ func _build_ui() -> void:
 	vbox.add_constant_override("separation", 16)
 	scroll.add_child(vbox)
 
-	# 升级自动化
-	vbox.add_child(_build_toggle("upgrade_auto", "升级自动化", "在升级时自动选择最优项", "_on_upgrade_toggled"))
-	# 商店自动化
-	vbox.add_child(_build_toggle("shop_auto", "商店自动化", "在商店中自动购买 / 锁定 / 拒绝物品", "_on_shop_toggled"))
+	# ---- 自动化设置 (置顶) ----
+	var auto_label := Label.new()
+	auto_label.text = "自动化设置"
+	auto_label.modulate = Color(0.35, 0.8, 1.0, 1.0)
+	vbox.add_child(auto_label)
+
+	vbox.add_child(_build_toggle("shop_automation", "商店自动化", "进入商店时自动决策购买/锁定", "_on_auto_bool_toggled"))
+	vbox.add_child(_build_toggle("upgrade_automation", "升级自动化", "升级时自动选择最优项", "_on_auto_bool_toggled"))
 
 	vbox.add_child(HSeparator.new())
 
-	# 预算设置
+	# ---- 预算设置 ----
 	var budget_label := Label.new()
 	budget_label.text = "预算设置"
 	budget_label.modulate = Color(0.35, 0.8, 1.0, 1.0)
@@ -47,11 +51,11 @@ func _build_ui() -> void:
 
 	vbox.add_child(_build_number_input("min_gold_balance", "最低金币保留", "购买后至少保留的金币数"))
 	vbox.add_child(_build_number_input("item_price_threshold", "物品价格上限", "单件物品价格超过此值不自动购买 (0=不限)"))
-	vbox.add_child(_build_number_input("reroll_budget", "刷新预算", "保留用于刷新的金币数 (0=不限)"))
+	vbox.add_child(_build_number_input("reroll_budget", "刷新金额上限", "单次刷新价格的上限, 超过此值不自动刷新 (0=不限)"))
 
 	vbox.add_child(HSeparator.new())
 
-	# 行为设置
+	# ---- 行为设置 ----
 	var behavior_label := Label.new()
 	behavior_label.text = "行为设置"
 	behavior_label.modulate = Color(0.35, 0.8, 1.0, 1.0)
@@ -59,6 +63,7 @@ func _build_ui() -> void:
 
 	vbox.add_child(_build_toggle("auto_start_wave", "自动开始下一关", "商店无法刷新时自动进入下一波敌袭", "_on_general_bool_toggled"))
 	vbox.add_child(_build_toggle("keep_running", "失焦保持运行", "窗口失去焦点时游戏继续运行", "_on_general_bool_toggled"))
+	vbox.add_child(_build_toggle("turbo_mode", "急速模式", "开启: 跳过界面停留瞬间推进; 关闭: 每次推进前停留 0.3s 让界面可见", "_on_general_bool_toggled"))
 
 	_refresh()
 
@@ -70,6 +75,7 @@ func _build_toggle(meta_key: String, title: String, desc: String, callback: Stri
 	cb.name = "%sCheck" % meta_key
 	cb.text = title
 	cb.size_flags_horizontal = SIZE_EXPAND_FILL
+	cb.focus_mode = Control.FOCUS_NONE
 	cb.connect("toggled", self, callback, [meta_key])
 	group.add_child(cb)
 
@@ -120,13 +126,14 @@ func _refresh() -> void:
 	if bridge == null:
 		return
 
-	var upgrade_cb = _find_check("upgrade_autoCheck")
-	if upgrade_cb:
-		upgrade_cb.pressed = bridge.is_upgrade_automation_enabled()
+	# 自动化开关 (顶层 key, 不在 general dict 内)
+	var shop_auto_cb = _find_check("shop_automationCheck")
+	if shop_auto_cb:
+		shop_auto_cb.pressed = bridge.is_shop_automation_enabled()
 
-	var shop_cb = _find_check("shop_autoCheck")
-	if shop_cb:
-		shop_cb.pressed = bridge.is_shop_automation_enabled()
+	var upgrade_auto_cb = _find_check("upgrade_automationCheck")
+	if upgrade_auto_cb:
+		upgrade_auto_cb.pressed = bridge.is_upgrade_automation_enabled()
 
 	var gen = bridge.get_general()
 	_set_edit_text("min_gold_balanceEdit", str(int(gen.get("min_gold_balance", 0))))
@@ -141,23 +148,15 @@ func _refresh() -> void:
 	if kr_cb:
 		kr_cb.pressed = bool(gen.get("keep_running", false))
 
+	var turbo_cb = _find_check("turbo_modeCheck")
+	if turbo_cb:
+		turbo_cb.pressed = bool(gen.get("turbo_mode", false))
+
 
 func _set_edit_text(name: String, text: String) -> void:
 	var edit = _find_edit(name)
 	if edit:
 		edit.text = text
-
-
-func _on_upgrade_toggled(pressed: bool, _key: String) -> void:
-	var bridge = Engine.get_meta("fengyifan-AutoTato:Bridge")
-	if bridge:
-		bridge.set_upgrade_automation_enabled(pressed)
-
-
-func _on_shop_toggled(pressed: bool, _key: String) -> void:
-	var bridge = Engine.get_meta("fengyifan-AutoTato:Bridge")
-	if bridge:
-		bridge.set_shop_automation_enabled(pressed)
 
 
 func _on_general_int_changed(new_text: String, key: String) -> void:
@@ -174,23 +173,36 @@ func _on_general_bool_toggled(pressed: bool, key: String) -> void:
 		bridge.set_general(key, pressed)
 
 
+func _on_auto_bool_toggled(pressed: bool, key: String) -> void:
+	var bridge = Engine.get_meta("fengyifan-AutoTato:Bridge")
+	if bridge:
+		match key:
+			"shop_automation":
+				bridge.set_shop_automation_enabled(pressed)
+			"upgrade_automation":
+				bridge.set_upgrade_automation_enabled(pressed)
+
+
+# 递归搜索 ScrollContainer 内的子节点
 func _find_check(name: String):
-	var vbox = get_node_or_null("GeneralVBox")
-	if vbox == null:
+	var scroll = get_node_or_null("ScrollContainer")
+	if scroll == null:
 		return null
-	for child in vbox.get_children():
-		var cb = child.get_node_or_null(name)
-		if cb:
-			return cb
-	return null
+	return _find_recursive(scroll, name)
 
 
 func _find_edit(name: String):
-	var vbox = get_node_or_null("GeneralVBox")
-	if vbox == null:
+	var scroll = get_node_or_null("ScrollContainer")
+	if scroll == null:
 		return null
-	for child in vbox.get_children():
-		var edit = child.get_node_or_null(name)
-		if edit:
-			return edit
+	return _find_recursive(scroll, name)
+
+
+func _find_recursive(node, name: String):
+	if node.name == name:
+		return node
+	for child in node.get_children():
+		var found = _find_recursive(child, name)
+		if found:
+			return found
 	return null

@@ -248,10 +248,10 @@ func _test_7_multi_stat_full_threshold_rejected() -> void:
 	# 把 Medal 涉及的 5 个 stat 全部配 upper=0
 	# 主菜单 current=0, 0 >= 0 触达 -> 全部触达 -> 反转
 	context["threshold_config"] = {
-		"stat_max_hp":         {"mode": "upper", "value": 0, "shop_action": "limit"},
-		"stat_percent_damage": {"mode": "upper", "value": 0, "shop_action": "limit"},
-		"stat_armor":          {"mode": "upper", "value": 0, "shop_action": "limit"},
-		"stat_speed":          {"mode": "upper", "value": 0, "shop_action": "limit"},
+		"stat_max_hp":         {"mode": "upper", "value": 0},
+		"stat_percent_damage": {"mode": "upper", "value": 0},
+		"stat_armor":          {"mode": "upper", "value": 0},
+		"stat_speed":          {"mode": "upper", "value": 0},
 		"stat_crit_chance":    {"mode": "upper", "value": 0},
 	}
 
@@ -407,7 +407,7 @@ func _test_12_upgrade_min_tier_quality_first() -> void:
 		"enabled": true,
 		"min_tier": 2,
 		"quality_first": true,
-		"ignore_blacklist_on_stuck": false,
+		"ignore_forbid_on_stuck": false,
 	}
 	var context := {
 		"player_index": 0,
@@ -434,7 +434,7 @@ func _test_13_upgrade_disabled_returns_minus_one() -> void:
 		"enabled": false,
 		"min_tier": 0,
 		"quality_first": true,
-		"ignore_blacklist_on_stuck": false,
+		"ignore_forbid_on_stuck": false,
 	}
 	var context := {
 		"player_index": 0,
@@ -461,6 +461,8 @@ func _make_default_context(gold: int = 100) -> Dictionary:
 		"threshold_config": {},
 		"min_gold_balance": 0,
 		"item_price_threshold": 0,
+		"shop_respect_thresholds": true,
+		"chest_respect_thresholds": false,
 	}
 
 
