@@ -15,22 +15,22 @@ extends "res://ui/menus/ingame/upgrades_ui_player_container.gd"
 const LOG_NAME := "fengyifan-AutoTato:CrateCardExt"
 
 const SHOP_ACTIONS := [
-	["manual",            "手动"],
-	["get",               "购买"],
-	["lock_until_cursed", "锁定等诅咒"],
-	["cursed_only",       "仅诅咒"],
-	["reject",            "拒绝"],
+	["manual",            "AUTOTATO_ACTION_MANUAL"],
+	["get",               "AUTOTATO_SHOP_GET"],
+	["lock_until_cursed", "AUTOTATO_SHOP_LOCK_UNTIL_CURSED"],
+	["cursed_only",       "AUTOTATO_SHOP_CURSED_ONLY"],
+	["reject",            "AUTOTATO_SHOP_REJECT"],
 ]
 const CHEST_ACTIONS := [
-	["manual",       "手动"],
-	["take",         "拿取"],
-	["cursed_only",  "仅诅咒"],
-	["reject",       "拒绝"],
+	["manual",       "AUTOTATO_ACTION_MANUAL"],
+	["take",         "AUTOTATO_CHEST_TAKE"],
+	["cursed_only",  "AUTOTATO_SHOP_CURSED_ONLY"],
+	["reject",       "AUTOTATO_SHOP_REJECT"],
 ]
 const WEAPON_SELF_OPTIONS := [
-	["follow_set_rule", "受类别控制"],
-	["manual",          "手动"],
-	["skip",             "跳过"],
+	["follow_set_rule", "AUTOTATO_FOLLOW_SET_RULE"],
+	["manual",          "AUTOTATO_ACTION_MANUAL"],
+	["skip",             "AUTOTATO_ACTION_SKIP"],
 ]
 
 # 物品规则颜色 (与 items_tab.gd 一致)
@@ -129,7 +129,7 @@ func _at_setup_buttons() -> void:
 
 	var rule_btn := Button.new()
 	rule_btn.name = "ATRuleButton"
-	rule_btn.text = "物品规则"
+	rule_btn.text = tr("AUTOTATO_ITEM_RULE")
 	rule_btn.align = Button.ALIGN_CENTER
 	rule_btn.focus_mode = Control.FOCUS_NONE
 	if _at_btn_font:
@@ -140,7 +140,7 @@ func _at_setup_buttons() -> void:
 
 	var auto_btn := Button.new()
 	auto_btn.name = "ATAutoButton"
-	auto_btn.text = "AutoTato"
+	auto_btn.text = tr("AUTOTATO_AUTOMATION")
 	auto_btn.align = Button.ALIGN_CENTER
 	auto_btn.focus_mode = Control.FOCUS_NONE
 	if _at_btn_font:
@@ -171,7 +171,7 @@ func _at_update_corner_label() -> void:
 	# 同步规则按钮文字
 	var rule_btn = get_node_or_null("ATRuleButton")
 	if rule_btn:
-		rule_btn.text = "武器规则" if is_weapon else "物品规则"
+		rule_btn.text = tr("AUTOTATO_WEAPON_RULE") if is_weapon else tr("AUTOTATO_ITEM_RULE")
 
 	if is_weapon:
 		# 武器: 只显示武器规则 (单条), 隐藏箱子行
@@ -180,13 +180,13 @@ func _at_update_corner_label() -> void:
 		var action = _at_resolve_weapon_action(wid, bridge.get_weapon_rules(), bridge.get_weapon_category_rules())
 		match action:
 			"skip":
-				_at_corner_shop.text = "跳过"
+				_at_corner_shop.text = tr("AUTOTATO_ACTION_SKIP")
 				_at_corner_shop.modulate = COLOR_SKIP
 			"manual", "follow_set_rule":
-				_at_corner_shop.text = "手动"
+				_at_corner_shop.text = tr("AUTOTATO_ACTION_MANUAL")
 				_at_corner_shop.modulate = COLOR_MANUAL
 			_:
-				_at_corner_shop.text = "受类别控制"
+				_at_corner_shop.text = tr("AUTOTATO_FOLLOW_SET_RULE")
 				_at_corner_shop.modulate = COLOR_FOLLOW
 	else:
 		# 物品: 同时显示商店规则 + 箱子规则, 文字/颜色与 items_tab 一致 (与商店卡片角标相同)
@@ -194,9 +194,9 @@ func _at_update_corner_label() -> void:
 		var rule = bridge.get_item_rule(_item_data.my_id)
 		var sa: String = String(rule.get("shop_action", "manual"))
 		var ca: String = String(rule.get("chest_action", "manual"))
-		_at_corner_shop.text = "商:" + _at_shop_action_text(sa)
+		_at_corner_shop.text = tr("AUTOTATO_CORNER_SHOP") + _at_shop_action_text(sa)
 		_at_corner_shop.modulate = _at_shop_action_color(sa)
-		_at_corner_chest.text = "箱:" + _at_chest_action_text(ca)
+		_at_corner_chest.text = tr("AUTOTATO_CORNER_CHEST") + _at_chest_action_text(ca)
 		_at_corner_chest.modulate = _at_chest_action_color(ca)
 
 
@@ -213,12 +213,12 @@ func _at_make_corner_label() -> Label:
 
 func _at_shop_action_text(a: String) -> String:
 	match a:
-		"manual": return "手动"
-		"get": return "购买"
-		"lock_until_cursed": return "锁定等诅咒"
-		"cursed_only": return "仅诅咒"
-		"reject": return "拒绝"
-		_: return "手动"
+		"manual": return tr("AUTOTATO_ACTION_MANUAL")
+		"get": return tr("AUTOTATO_SHOP_GET")
+		"lock_until_cursed": return tr("AUTOTATO_SHOP_LOCK_UNTIL_CURSED")
+		"cursed_only": return tr("AUTOTATO_SHOP_CURSED_ONLY")
+		"reject": return tr("AUTOTATO_SHOP_REJECT")
+		_: return tr("AUTOTATO_ACTION_MANUAL")
 
 
 func _at_shop_action_color(a: String) -> Color:
@@ -233,11 +233,11 @@ func _at_shop_action_color(a: String) -> Color:
 
 func _at_chest_action_text(a: String) -> String:
 	match a:
-		"manual": return "手动"
-		"take": return "拿取"
-		"cursed_only": return "仅诅咒"
-		"reject": return "拒绝"
-		_: return "手动"
+		"manual": return tr("AUTOTATO_ACTION_MANUAL")
+		"take": return tr("AUTOTATO_CHEST_TAKE")
+		"cursed_only": return tr("AUTOTATO_SHOP_CURSED_ONLY")
+		"reject": return tr("AUTOTATO_SHOP_REJECT")
+		_: return tr("AUTOTATO_ACTION_MANUAL")
 
 
 func _at_chest_action_color(a: String) -> Color:
@@ -309,7 +309,7 @@ func _at_build_set_rows(set_rules: Dictionary) -> void:
 
 	var weapon_sets = _item_data.get("sets")
 	if not weapon_sets is Array or weapon_sets.size() == 0:
-		_at_set_vbox.add_child(_at_label("无类别"))
+		_at_set_vbox.add_child(_at_label(tr("AUTOTATO_NO_CATEGORY")))
 		return
 
 	var all_sets = ItemService.get("sets") if typeof(ItemService) == TYPE_OBJECT else []
@@ -325,8 +325,8 @@ func _at_build_set_rows(set_rules: Dictionary) -> void:
 		var opt := OptionButton.new()
 		opt.name = "Set_%s" % sid
 		opt.rect_min_size.x = 70
-		opt.add_item("手动")
-		opt.add_item("跳过")
+		opt.add_item(tr("AUTOTATO_ACTION_MANUAL"))
+		opt.add_item(tr("AUTOTATO_ACTION_SKIP"))
 		opt.focus_mode = Control.FOCUS_NONE
 		var cr: String = set_rules.get(sid, "manual")
 		opt.select(1 if cr == "skip" else 0)
@@ -404,7 +404,7 @@ func _at_ensure_popup() -> void:
 	actions_grid.add_constant_override("vseparation", 8)
 
 	var shop_label := Label.new()
-	shop_label.text = "商店行为"
+	shop_label.text = tr("AUTOTATO_SHOP_BEHAVIOR")
 	shop_label.valign = Label.VALIGN_CENTER
 	shop_label.rect_min_size = Vector2(80, 0)
 	actions_grid.add_child(shop_label)
@@ -413,11 +413,11 @@ func _at_ensure_popup() -> void:
 	_at_shop_opt.size_flags_horizontal = SIZE_EXPAND_FILL
 	_at_shop_opt.focus_mode = Control.FOCUS_NONE
 	for pair in SHOP_ACTIONS:
-		_at_shop_opt.add_item(pair[1])
+		_at_shop_opt.add_item(tr(pair[1]))
 	actions_grid.add_child(_at_shop_opt)
 
 	var chest_label := Label.new()
-	chest_label.text = "箱子行为"
+	chest_label.text = tr("AUTOTATO_CHEST_BEHAVIOR")
 	chest_label.valign = Label.VALIGN_CENTER
 	chest_label.rect_min_size = Vector2(80, 0)
 	actions_grid.add_child(chest_label)
@@ -426,7 +426,7 @@ func _at_ensure_popup() -> void:
 	_at_chest_opt.size_flags_horizontal = SIZE_EXPAND_FILL
 	_at_chest_opt.focus_mode = Control.FOCUS_NONE
 	for pair in CHEST_ACTIONS:
-		_at_chest_opt.add_item(pair[1])
+		_at_chest_opt.add_item(tr(pair[1]))
 	actions_grid.add_child(_at_chest_opt)
 
 	_at_item_vbox.add_child(actions_grid)
@@ -443,7 +443,7 @@ func _at_ensure_popup() -> void:
 	_at_self_opt.size_flags_horizontal = SIZE_EXPAND_FILL
 	_at_self_opt.focus_mode = Control.FOCUS_NONE
 	for pair in WEAPON_SELF_OPTIONS:
-		_at_self_opt.add_item(pair[1])
+		_at_self_opt.add_item(tr(pair[1]))
 	self_row.add_child(_at_self_opt)
 	_at_weapon_vbox.add_child(self_row)
 
@@ -464,13 +464,13 @@ func _at_ensure_popup() -> void:
 	btn_hbox.alignment = BoxContainer.ALIGN_END
 
 	var cancel_btn := Button.new()
-	cancel_btn.text = "取消"
+	cancel_btn.text = tr("AUTOTATO_CANCEL")
 	cancel_btn.focus_mode = Control.FOCUS_NONE
 	cancel_btn.connect("pressed", self, "_at_popup_cancel")
 	btn_hbox.add_child(cancel_btn)
 
 	var save_btn := Button.new()
-	save_btn.text = "保存"
+	save_btn.text = tr("AUTOTATO_SAVE")
 	save_btn.focus_mode = Control.FOCUS_NONE
 	save_btn.connect("pressed", self, "_at_popup_save")
 	btn_hbox.add_child(save_btn)

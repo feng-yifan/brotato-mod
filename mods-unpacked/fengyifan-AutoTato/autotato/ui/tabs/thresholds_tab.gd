@@ -12,9 +12,9 @@ extends Control
 const LOG_NAME := "fengyifan-AutoTato:ThresholdsTab"
 
 const MODE_OPTIONS := [
-	["unlimited", "不限"],
-	["upper",     "上限"],
-	["lower",     "下限"],
+	["unlimited", "AUTOTATO_THRESHOLD_UNLIMITED"],
+	["upper",     "AUTOTATO_THRESHOLD_UPPER"],
+	["lower",     "AUTOTATO_THRESHOLD_LOWER"],
 ]
 
 const SEP_EVERY := 3
@@ -70,8 +70,8 @@ func _build_ui() -> void:
 	_groups.margin_top = 4.0
 	scroll.add_child(_groups)
 
-	_build_group("primary", "主要属性", _collect_primary_rows())
-	_build_group("secondary", "次要属性", _inject_separators(SECONDARY_STAT_ENTRIES.duplicate(true)))
+	_build_group("primary", tr("AUTOTATO_PRIMARY_STATS"), _collect_primary_rows())
+	_build_group("secondary", tr("AUTOTATO_SECONDARY_STATS"), _inject_separators(SECONDARY_STAT_ENTRIES.duplicate(true)))
 
 
 func _collect_primary_rows() -> Array:
@@ -142,7 +142,7 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 
 		# 1. 属性名称
 		var name_label := Label.new()
-		name_label.text = entry["tr_key"]
+		name_label.text = tr(entry["tr_key"])
 		name_label.size_flags_horizontal = SIZE_EXPAND_FILL
 		name_label.valign = Label.VALIGN_CENTER
 		name_label.clip_text = true
@@ -161,7 +161,7 @@ func _append_rows_to_group(group_key: String, stat_rows: Array) -> void:
 		mode_btn.name = "Mode_%s" % entry["key"]
 		mode_btn.rect_min_size.x = 60
 		for opt in MODE_OPTIONS:
-			mode_btn.add_item(opt[1])
+			mode_btn.add_item(tr(opt[1]))
 		mode_btn.connect("item_selected", self, "_on_mode_changed", [entry["key"]])
 		row.add_child(mode_btn)
 

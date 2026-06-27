@@ -34,36 +34,36 @@ func _build_ui() -> void:
 
 	# ---- 自动化设置 (置顶) ----
 	var auto_label := Label.new()
-	auto_label.text = "自动化设置"
+	auto_label.text = tr("AUTOTATO_SECTION_AUTOMATION")
 	auto_label.modulate = Color(0.35, 0.8, 1.0, 1.0)
 	vbox.add_child(auto_label)
 
-	vbox.add_child(_build_toggle("shop_automation", "商店自动化", "进入商店时自动决策购买/锁定", "_on_auto_bool_toggled"))
-	vbox.add_child(_build_toggle("upgrade_automation", "升级自动化", "升级时自动选择最优项", "_on_auto_bool_toggled"))
+	vbox.add_child(_build_toggle("shop_automation", tr("AUTOTATO_SHOP_AUTOMATION"), tr("AUTOTATO_SHOP_AUTO_DESC"), "_on_auto_bool_toggled"))
+	vbox.add_child(_build_toggle("upgrade_automation", tr("AUTOTATO_UPGRADE_AUTOMATION"), tr("AUTOTATO_UPGRADE_AUTO_DESC"), "_on_auto_bool_toggled"))
 
 	vbox.add_child(HSeparator.new())
 
 	# ---- 预算设置 ----
 	var budget_label := Label.new()
-	budget_label.text = "预算设置"
+	budget_label.text = tr("AUTOTATO_SECTION_BUDGET")
 	budget_label.modulate = Color(0.35, 0.8, 1.0, 1.0)
 	vbox.add_child(budget_label)
 
-	vbox.add_child(_build_number_input("min_gold_balance", "最低金币保留", "购买后至少保留的金币数"))
-	vbox.add_child(_build_number_input("item_price_threshold", "物品价格上限", "单件物品价格超过此值不自动购买 (0=不限)"))
-	vbox.add_child(_build_number_input("reroll_budget", "刷新金额上限", "单次刷新价格的上限, 超过此值不自动刷新 (0=不限)"))
+	vbox.add_child(_build_number_input("min_gold_balance", tr("AUTOTATO_MIN_GOLD_BALANCE"), tr("AUTOTATO_MIN_GOLD_DESC")))
+	vbox.add_child(_build_number_input("item_price_threshold", tr("AUTOTATO_ITEM_PRICE_LIMIT"), tr("AUTOTATO_ITEM_PRICE_DESC")))
+	vbox.add_child(_build_number_input("reroll_budget", tr("AUTOTATO_REROLL_BUDGET"), tr("AUTOTATO_REROLL_BUDGET_DESC")))
 
 	vbox.add_child(HSeparator.new())
 
 	# ---- 行为设置 ----
 	var behavior_label := Label.new()
-	behavior_label.text = "行为设置"
+	behavior_label.text = tr("AUTOTATO_SECTION_BEHAVIOR")
 	behavior_label.modulate = Color(0.35, 0.8, 1.0, 1.0)
 	vbox.add_child(behavior_label)
 
-	vbox.add_child(_build_toggle("auto_start_wave", "自动开始下一关", "商店无法刷新时自动进入下一波敌袭", "_on_general_bool_toggled"))
-	vbox.add_child(_build_toggle("keep_running", "失焦保持运行", "窗口失去焦点时游戏继续运行", "_on_general_bool_toggled"))
-	vbox.add_child(_build_toggle("turbo_mode", "急速模式", "开启: 跳过界面停留瞬间推进; 关闭: 每次推进前停留 0.3s 让界面可见", "_on_general_bool_toggled"))
+	vbox.add_child(_build_toggle("auto_start_wave", tr("AUTOTATO_AUTO_START_WAVE"), tr("AUTOTATO_AUTO_START_WAVE_DESC"), "_on_general_bool_toggled"))
+	vbox.add_child(_build_toggle("keep_running", tr("AUTOTATO_KEEP_RUNNING"), tr("AUTOTATO_KEEP_RUNNING_DESC"), "_on_general_bool_toggled"))
+	vbox.add_child(_build_toggle("turbo_mode", tr("AUTOTATO_TURBO_MODE"), tr("AUTOTATO_TURBO_MODE_DESC"), "_on_general_bool_toggled"))
 
 	_refresh()
 

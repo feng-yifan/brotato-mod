@@ -81,18 +81,18 @@ func _build_ui() -> void:
 	margin.add_child(vbox)
 
 	# ---- 1. 升级策略 ----
-	vbox.add_child(_section_header("升级策略"))
+	vbox.add_child(_section_header(tr("AUTOTATO_UPGRADE_STRATEGY")))
 
-	_respect_thresholds_cb = _make_check("受阈值影响")
+	_respect_thresholds_cb = _make_check(tr("AUTOTATO_RESPECT_THRESHOLDS"))
 	_respect_thresholds_cb.connect("toggled", self, "_on_respect_toggled")
 	vbox.add_child(_respect_thresholds_cb)
 
-	vbox.add_child(_desc("当升级选项含有多个可转换的属性时，会同时判断所有已配置的阈值；只有当全部相关属性都触达限制时，该选项才会被过滤。"))
+	vbox.add_child(_desc(tr("AUTOTATO_RESPECT_THRESHOLDS_DESC")))
 
 	# 最低等级
 	var tier_row := HBoxContainer.new()
 	tier_row.rect_min_size.y = 32
-	tier_row.add_child(_label("最低等级"))
+	tier_row.add_child(_label(tr("AUTOTATO_MIN_TIER")))
 
 	_min_tier_opt = OptionButton.new()
 	_min_tier_opt.name = "MinTierOpt"
@@ -107,16 +107,16 @@ func _build_ui() -> void:
 	tier_row.add_child(tier_spacer)
 	vbox.add_child(tier_row)
 
-	_quality_first_cb = _make_check("品质优先")
+	_quality_first_cb = _make_check(tr("AUTOTATO_QUALITY_FIRST"))
 	_quality_first_cb.connect("toggled", self, "_on_quality_toggled")
 	vbox.add_child(_quality_first_cb)
 
-	vbox.add_child(_desc("优先选择高等级 (Tier) 的选项"))
+	vbox.add_child(_desc(tr("AUTOTATO_QUALITY_FIRST_DESC")))
 	vbox.add_child(HSeparator.new())
 
 	# ---- 2. 禁止属性 (仅主要属性) ----
-	vbox.add_child(_section_header("禁止属性"))
-	vbox.add_child(_desc("含这些属性的升级项将被过滤掉"))
+	vbox.add_child(_section_header(tr("AUTOTATO_FORBID_STATS")))
+	vbox.add_child(_desc(tr("AUTOTATO_FORBID_STATS_DESC")))
 
 	var forbid_grid := GridContainer.new()
 	forbid_grid.name = "ForbidGrid"
@@ -137,19 +137,19 @@ func _build_ui() -> void:
 	vbox.add_child(HSeparator.new())
 
 	# ---- 3. 卡住时忽略 ----
-	_ignore_forbid_cb = _make_check("卡住时忽略禁止列表")
+	_ignore_forbid_cb = _make_check(tr("AUTOTATO_IGNORE_FORBID_ON_STUCK"))
 	_ignore_forbid_cb.connect("toggled", self, "_on_ignore_forbid_toggled")
 	vbox.add_child(_ignore_forbid_cb)
 
-	vbox.add_child(_desc("所有候选都被过滤时, 回退到不过滤的排序结果"))
+	vbox.add_child(_desc(tr("AUTOTATO_IGNORE_FORBID_ON_STUCK_DESC")))
 	vbox.add_child(HSeparator.new())
 
 	# ---- 4. 优先级排序 ----
-	vbox.add_child(_section_header("优先级排序"))
-	vbox.add_child(_desc("同等级内, 按此顺序优先选择含对应属性的升级项"))
+	vbox.add_child(_section_header(tr("AUTOTATO_STAT_PRIORITY")))
+	vbox.add_child(_desc(tr("AUTOTATO_STAT_PRIORITY_DESC")))
 
 	var pri_label := Label.new()
-	pri_label.text = "已优先"
+	pri_label.text = tr("AUTOTATO_PRIORITIZED")
 	pri_label.modulate = Color(1, 1, 1, 0.7)
 	vbox.add_child(pri_label)
 
@@ -160,7 +160,7 @@ func _build_ui() -> void:
 	vbox.add_child(HSeparator.new())
 
 	var unpri_label := Label.new()
-	unpri_label.text = "未优先"
+	unpri_label.text = tr("AUTOTATO_NOT_PRIORITIZED")
 	unpri_label.modulate = Color(1, 1, 1, 0.7)
 	vbox.add_child(unpri_label)
 
@@ -273,7 +273,7 @@ func _refresh_priority_ui(priority: Array, bridge) -> void:
 		row.add_child(down_btn)
 
 		var remove_btn := Button.new()
-		remove_btn.text = "移除"
+		remove_btn.text = tr("AUTOTATO_REMOVE")
 		remove_btn.rect_min_size = Vector2(48, 24)
 		remove_btn.focus_mode = Control.FOCUS_NONE
 		remove_btn.connect("pressed", self, "_on_priority_remove", [sk])
@@ -297,7 +297,7 @@ func _refresh_priority_ui(priority: Array, bridge) -> void:
 		row.add_child(name_label)
 
 		var add_btn := Button.new()
-		add_btn.text = "加入优先"
+		add_btn.text = tr("AUTOTATO_ADD_TO_PRIORITY")
 		add_btn.rect_min_size = Vector2(72, 24)
 		add_btn.focus_mode = Control.FOCUS_NONE
 		add_btn.connect("pressed", self, "_on_priority_add", [sk])

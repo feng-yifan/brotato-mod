@@ -332,7 +332,7 @@ func _at_ensure_upgrade_auto_button(pc, player_index: int) -> void:
 		return
 	var btn := Button.new()
 	btn.name = "ATAutoUpgradeButton"
-	btn.text = "AutoTato"
+	btn.text = tr("AUTOTATO_AUTOMATION")
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.set_meta("player_index", player_index)
 	btn.connect("pressed", self, "_at_upgrade_auto_pressed", [btn])

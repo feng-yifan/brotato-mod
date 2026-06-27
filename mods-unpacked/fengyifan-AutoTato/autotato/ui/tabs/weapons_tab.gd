@@ -12,14 +12,14 @@ extends Control
 const LOG_NAME := "fengyifan-AutoTato:WeaponsTab"
 
 const WEAPON_SELF_OPTIONS := [
-	["follow_set_rule", "受类别控制"],
-	["manual",          "手动"],
-	["skip",             "跳过"],
+	["follow_set_rule", "AUTOTATO_FOLLOW_SET_RULE"],
+	["manual",          "AUTOTATO_ACTION_MANUAL"],
+	["skip",             "AUTOTATO_ACTION_SKIP"],
 ]
 
 const SET_RULE_OPTIONS := [
-	["manual", "手动"],
-	["skip",   "跳过"],
+	["manual", "AUTOTATO_ACTION_MANUAL"],
+	["skip",   "AUTOTATO_ACTION_SKIP"],
 ]
 
 const GRID_COLUMNS := 7
@@ -76,7 +76,7 @@ func _build_ui() -> void:
 	settings.add_constant_override("separation", 12)
 	root.add_child(settings)
 
-	settings.add_child(_label("最低武器级别:"))
+	settings.add_child(_label(tr("AUTOTATO_MIN_WEAPON_TIER")))
 	_min_tier_opt = OptionButton.new()
 	_min_tier_opt.name = "MinTierOpt"
 	_min_tier_opt.rect_min_size.x = 80
@@ -131,12 +131,12 @@ func _refresh() -> void:
 
 	var chains: Dictionary = _load_weapon_chains()
 	if chains.empty():
-		_show_empty("武器数据不可用")
+		_show_empty(tr("AUTOTATO_WEAPON_DATA_UNAVAILABLE"))
 		return
 
 	var sets: Array = _load_sets()
 	if sets.empty():
-		_show_empty("武器类别数据不可用")
+		_show_empty(tr("AUTOTATO_WEAPON_CATEGORY_DATA_UNAVAILABLE"))
 		return
 
 	# 构建 set → chain_ids 映射
@@ -249,8 +249,8 @@ func _build_set_block(set_data, chain_ids: Array, chains: Dictionary, self_rules
 	var ro := OptionButton.new()
 	ro.name = "SetRule_%s" % sid
 	ro.rect_min_size.x = 70
-	ro.add_item("手动")
-	ro.add_item("跳过")
+	ro.add_item(tr("AUTOTATO_ACTION_MANUAL"))
+	ro.add_item(tr("AUTOTATO_ACTION_SKIP"))
 	var cr: String = set_rules.get(sid, "manual")
 	ro.select(1 if cr == "skip" else 0)
 	ro.connect("item_selected", self, "_on_set_rule_changed", [sid])
@@ -403,13 +403,13 @@ func _apply_card_text(cid: String, own_label: Label, result_label: Label, self_r
 	var own_color: Color
 	match sr:
 		"manual":
-			own_text = "手动"
+			own_text = tr("AUTOTATO_ACTION_MANUAL")
 			own_color = COLOR_MANUAL
 		"skip":
-			own_text = "跳过"
+			own_text = tr("AUTOTATO_ACTION_SKIP")
 			own_color = COLOR_SKIP
 		_:
-			own_text = "受类别控制"
+			own_text = tr("AUTOTATO_FOLLOW_SET_RULE")
 			own_color = COLOR_FOLLOW
 	own_label.text = own_text
 	own_label.modulate = own_color
@@ -419,13 +419,13 @@ func _apply_card_text(cid: String, own_label: Label, result_label: Label, self_r
 	var result_color: Color
 	match action:
 		"skip":
-			result_text = "跳过"
+			result_text = tr("AUTOTATO_ACTION_SKIP")
 			result_color = COLOR_SKIP
 		"manual":
-			result_text = "手动"
+			result_text = tr("AUTOTATO_ACTION_MANUAL")
 			result_color = COLOR_MANUAL
 		_:
-			result_text = "受类别控制"
+			result_text = tr("AUTOTATO_FOLLOW_SET_RULE")
 			result_color = COLOR_FOLLOW
 	result_label.text = result_text
 	result_label.modulate = result_color
@@ -488,7 +488,7 @@ func _build_set_rule_controls(set_rules: Dictionary) -> void:
 
 	var sids = _weapon_set_map.get(_editing_chain_id, [])
 	if sids.empty():
-		_set_rule_vbox.add_child(_label("此武器不属于任何类别"))
+		_set_rule_vbox.add_child(_label(tr("AUTOTATO_WEAPON_NO_CATEGORY")))
 		return
 
 	var sets = _load_sets()
@@ -510,8 +510,8 @@ func _build_set_rule_controls(set_rules: Dictionary) -> void:
 		var opt := OptionButton.new()
 		opt.name = "Set_%s" % sid
 		opt.rect_min_size.x = 70
-		opt.add_item("手动")
-		opt.add_item("跳过")
+		opt.add_item(tr("AUTOTATO_ACTION_MANUAL"))
+		opt.add_item(tr("AUTOTATO_ACTION_SKIP"))
 		var cr: String = set_rules.get(sid, "manual")
 		opt.select(1 if cr == "skip" else 0)
 		row.add_child(opt)
@@ -575,18 +575,18 @@ func _ensure_popup() -> void:
 
 	# 武器自身规则 — 同一行
 	var self_row := HBoxContainer.new()
-	self_row.add_child(_label("武器自身规则"))
+	self_row.add_child(_label(tr("AUTOTATO_WEAPON_SELF_RULE")))
 
 	_self_option = OptionButton.new()
 	_self_option.size_flags_horizontal = SIZE_EXPAND_FILL
 	_self_option.focus_mode = Control.FOCUS_NONE
 	for pair in WEAPON_SELF_OPTIONS:
-		_self_option.add_item(pair[1])
+		_self_option.add_item(tr(pair[1]))
 	self_row.add_child(_self_option)
 	cv.add_child(self_row)
 
 	cv.add_child(HSeparator.new())
-	cv.add_child(_label("类别规则"))
+	cv.add_child(_label(tr("AUTOTATO_CATEGORY_RULE")))
 
 	# v7: 自适应高度, 无 ScrollContainer
 	_set_rule_vbox = VBoxContainer.new()
@@ -599,12 +599,12 @@ func _ensure_popup() -> void:
 	var bh := HBoxContainer.new()
 	bh.alignment = BoxContainer.ALIGN_END
 	var cb := Button.new()
-	cb.text = "取消"
+	cb.text = tr("AUTOTATO_CANCEL")
 	cb.focus_mode = Control.FOCUS_NONE
 	cb.connect("pressed", self, "_on_popup_cancel")
 	bh.add_child(cb)
 	var sb := Button.new()
-	sb.text = "保存"
+	sb.text = tr("AUTOTATO_SAVE")
 	sb.focus_mode = Control.FOCUS_NONE
 	sb.connect("pressed", self, "_on_popup_save")
 	bh.add_child(sb)

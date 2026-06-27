@@ -38,27 +38,27 @@ const LOG_NAME := "fengyifan-AutoTato:ItemsTab"
 # 颜色从 ItemService.get_color_from_tier() 动态获取 (来源于 ProgressData.settings),
 # 与 vanilla 商店/库存/物品栏完全一致.
 const TIERS := [
-	{"value": 3, "key": "传说"},    # LEGENDARY
-	{"value": 2, "key": "稀有"},    # RARE
-	{"value": 1, "key": "精良"},    # UNCOMMON
-	{"value": 0, "key": "普通"},    # COMMON
+	{"value": 3, "key": "AUTOTATO_TIER_LEGENDARY"},    # LEGENDARY
+	{"value": 2, "key": "AUTOTATO_TIER_EPIC"},        # RARE
+	{"value": 1, "key": "AUTOTATO_TIER_RARE"},        # UNCOMMON
+	{"value": 0, "key": "AUTOTATO_TIER_COMMON"},    # COMMON
 ]
 
 # shop_action 选项: [value_key, display_text]
 const SHOP_ACTIONS := [
-	["manual",            "手动"],
-	["get",               "购买"],
-	["lock_until_cursed", "锁定等诅咒"],
-	["cursed_only",       "仅诅咒"],
-	["reject",            "拒绝"],
+	["manual",            "AUTOTATO_ACTION_MANUAL"],
+	["get",               "AUTOTATO_SHOP_GET"],
+	["lock_until_cursed", "AUTOTATO_SHOP_LOCK_UNTIL_CURSED"],
+	["cursed_only",       "AUTOTATO_SHOP_CURSED_ONLY"],
+	["reject",            "AUTOTATO_SHOP_REJECT"],
 ]
 
 # chest_action 选项
 const CHEST_ACTIONS := [
-	["manual",       "手动"],
-	["take",         "拿取"],
-	["cursed_only",  "仅诅咒"],
-	["reject",       "拒绝"],
+	["manual",       "AUTOTATO_ACTION_MANUAL"],
+	["take",         "AUTOTATO_CHEST_TAKE"],
+	["cursed_only",  "AUTOTATO_SHOP_CURSED_ONLY"],
+	["reject",       "AUTOTATO_SHOP_REJECT"],
 ]
 
 const GRID_COLUMNS := 7
@@ -78,7 +78,7 @@ const ACTION_COLOR_CURSED := Color(0.8, 0.45, 1.0, 1.0)
 
 # ---- 类型筛选 (基于 max_nb) ----
 enum TypeFilter { ALL = 0, UNIQUE = 1, LIMITED = 2, OTHER = 3 }
-const TYPE_FILTER_NAMES := ["类型: 不限", "类型: 独特", "类型: 限制", "类型: 其他"]
+const TYPE_FILTER_NAMES := ["AUTOTATO_ITEM_TYPE_ALL", "AUTOTATO_ITEM_TYPE_UNIQUE", "AUTOTATO_ITEM_TYPE_LIMITED", "AUTOTATO_ITEM_TYPE_OTHER"]
 
 # ---- State ----
 # _rules: Bridge.get_item_rules() 的本地缓存, 用于卡片渲染. 不持有写权限.
@@ -184,37 +184,37 @@ func _build_static_ui() -> void:
 	var type_opt := OptionButton.new()
 	type_opt.rect_min_size = Vector2(120, 0)
 	for name in TYPE_FILTER_NAMES:
-		type_opt.add_item(name)
+		type_opt.add_item(tr(name))
 	type_opt.connect("item_selected", self, "_on_filter_type_changed")
 	filter_bar.add_child(type_opt)
 
 	_filter_shop_opt = OptionButton.new()
 	_filter_shop_opt.rect_min_size = Vector2(140, 0)
-	_filter_shop_opt.add_item("商店: 不限")
+	_filter_shop_opt.add_item(tr("AUTOTATO_SHOP_FILTER_ALL"))
 	for pair in SHOP_ACTIONS:
-		_filter_shop_opt.add_item("商店: %s" % pair[1])
+		_filter_shop_opt.add_item(tr("AUTOTATO_CORNER_SHOP") + " " + tr(pair[1]))
 	_filter_shop_opt.connect("item_selected", self, "_on_filter_shop_changed")
 	filter_bar.add_child(_filter_shop_opt)
 
 	_filter_chest_opt = OptionButton.new()
 	_filter_chest_opt.rect_min_size = Vector2(140, 0)
-	_filter_chest_opt.add_item("箱子: 不限")
+	_filter_chest_opt.add_item(tr("AUTOTATO_CHEST_FILTER_ALL"))
 	for pair in CHEST_ACTIONS:
-		_filter_chest_opt.add_item("箱子: %s" % pair[1])
+		_filter_chest_opt.add_item(tr("AUTOTATO_CORNER_CHEST") + " " + tr(pair[1]))
 	_filter_chest_opt.connect("item_selected", self, "_on_filter_chest_changed")
 	filter_bar.add_child(_filter_chest_opt)
 
 	# v7: 阈值开关
 	_shop_respect_cb = CheckButton.new()
 	_shop_respect_cb.name = "ShopRespectCheck"
-	_shop_respect_cb.text = "商店受阈值影响"
+	_shop_respect_cb.text = tr("AUTOTATO_SHOP_RESPECT_THRESHOLDS")
 	_shop_respect_cb.focus_mode = Control.FOCUS_NONE
 	_shop_respect_cb.connect("toggled", self, "_on_shop_respect_toggled")
 	filter_bar.add_child(_shop_respect_cb)
 
 	_chest_respect_cb = CheckButton.new()
 	_chest_respect_cb.name = "ChestRespectCheck"
-	_chest_respect_cb.text = "箱子受阈值影响"
+	_chest_respect_cb.text = tr("AUTOTATO_CHEST_RESPECT_THRESHOLDS")
 	_chest_respect_cb.focus_mode = Control.FOCUS_NONE
 	_chest_respect_cb.connect("toggled", self, "_on_chest_respect_toggled")
 	filter_bar.add_child(_chest_respect_cb)
@@ -257,7 +257,7 @@ func _refresh() -> void:
 
 	var all_items: Array = _load_all_items()
 	if all_items.empty():
-		_show_empty("物品数据不可用")
+		_show_empty(tr("AUTOTATO_ITEM_DATA_UNAVAILABLE"))
 		return
 
 	# Group by tier
@@ -336,7 +336,7 @@ func _build_tier_block(tier_def: Dictionary, items: Array) -> void:
 	header_inner.add_child(arrow)
 
 	var name_label := Label.new()
-	name_label.text = tier_name
+	name_label.text = tr(tier_name)
 	name_label.modulate = tier_color
 	name_label.valign = Label.VALIGN_CENTER
 	name_label.rect_min_size = Vector2(0, 32)
@@ -677,7 +677,7 @@ func _ensure_popup() -> void:
 	actions_grid.add_constant_override("vseparation", 8)
 
 	var shop_label := Label.new()
-	shop_label.text = "商店行为"
+	shop_label.text = tr("AUTOTATO_SHOP_BEHAVIOR")
 	shop_label.valign = Label.VALIGN_CENTER
 	shop_label.rect_min_size = Vector2(80, 0)
 	actions_grid.add_child(shop_label)
@@ -685,11 +685,11 @@ func _ensure_popup() -> void:
 	_shop_option = OptionButton.new()
 	_shop_option.size_flags_horizontal = SIZE_EXPAND_FILL
 	for pair in SHOP_ACTIONS:
-		_shop_option.add_item(pair[1])
+		_shop_option.add_item(tr(pair[1]))
 	actions_grid.add_child(_shop_option)
 
 	var chest_label := Label.new()
-	chest_label.text = "箱子行为"
+	chest_label.text = tr("AUTOTATO_CHEST_BEHAVIOR")
 	chest_label.valign = Label.VALIGN_CENTER
 	chest_label.rect_min_size = Vector2(80, 0)
 	actions_grid.add_child(chest_label)
@@ -697,7 +697,7 @@ func _ensure_popup() -> void:
 	_chest_option = OptionButton.new()
 	_chest_option.size_flags_horizontal = SIZE_EXPAND_FILL
 	for pair in CHEST_ACTIONS:
-		_chest_option.add_item(pair[1])
+		_chest_option.add_item(tr(pair[1]))
 	actions_grid.add_child(_chest_option)
 
 	content_vbox.add_child(actions_grid)
@@ -714,13 +714,13 @@ func _ensure_popup() -> void:
 	btn_hbox.alignment = BoxContainer.ALIGN_END
 
 	var cancel_btn := Button.new()
-	cancel_btn.text = "取消"
+	cancel_btn.text = tr("AUTOTATO_CANCEL")
 	cancel_btn.focus_mode = Control.FOCUS_NONE
 	cancel_btn.connect("pressed", self, "_on_popup_cancel")
 	btn_hbox.add_child(cancel_btn)
 
 	var save_btn := Button.new()
-	save_btn.text = "保存"
+	save_btn.text = tr("AUTOTATO_SAVE")
 	save_btn.focus_mode = Control.FOCUS_NONE
 	save_btn.connect("pressed", self, "_on_popup_save")
 	btn_hbox.add_child(save_btn)
@@ -783,7 +783,7 @@ func _refresh_card_and_apply_filters(item_id: String) -> void:
 func _action_display(key: String, actions: Array) -> String:
 	for pair in actions:
 		if pair[0] == key:
-			return pair[1]
+			return tr(pair[1])
 	return key
 
 

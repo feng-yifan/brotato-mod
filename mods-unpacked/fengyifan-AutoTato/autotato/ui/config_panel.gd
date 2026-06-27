@@ -21,11 +21,28 @@ extends Control
 
 signal close_requested
 
+onready var _title_label: Label = $PanelContainer/VBoxContainer/HeaderHBox/TitleLabel
 onready var _close_button: Button = $PanelContainer/VBoxContainer/HeaderHBox/CloseButton
 onready var _tabs: TabContainer = $PanelContainer/VBoxContainer/AutoTatoTabs
 
+# Tab 内部名称 → 翻译 key 映射
+const TAB_TRANSLATION_KEYS := {
+	"GeneralTab": "AUTOTATO_TAB_GENERAL",
+	"UpgradeTab": "AUTOTATO_TAB_UPGRADE",
+	"ItemsTab": "AUTOTATO_TAB_ITEMS",
+	"WeaponsTab": "AUTOTATO_TAB_WEAPONS",
+	"ThresholdsTab": "AUTOTATO_TAB_THRESHOLDS",
+}
+
 
 func _ready() -> void:
+	_title_label.text = tr("AUTOTATO_PANEL_TITLE")
+	# 设置每个 Tab 的多语言标题
+	for i in _tabs.get_child_count():
+		var child = _tabs.get_child(i)
+		var tab_key = TAB_TRANSLATION_KEYS.get(child.name, "")
+		if tab_key:
+			_tabs.set_tab_title(i, tr(tab_key))
 	_close_button.connect("pressed", self, "_on_close")
 	_tabs.connect("tab_changed", self, "_on_tab_changed")
 	_apply_vanilla_theme()

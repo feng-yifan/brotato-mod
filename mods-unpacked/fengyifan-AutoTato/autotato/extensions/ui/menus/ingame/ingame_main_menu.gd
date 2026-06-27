@@ -64,7 +64,7 @@ func _ready() -> void:
 func _autotato_inject_button(buttons: Node) -> void:
 	var btn = Button.new()
 	btn.name = BUTTON_NAME
-	btn.text = "AutoTato"  # TODO P5.5 接 tr_key
+	btn.text = tr("AUTOTATO_AUTOMATION")
 	btn.set_script(MY_MENU_BUTTON_SCRIPT)
 	btn.focus_mode = Control.FOCUS_ALL
 
