@@ -1,27 +1,27 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P3 烟雾测试 (商店 hook)
+# AutoTato — 商店 Hook 烟雾测试
 # ============================================================================
 #
-# 目的: 验证 P3 把 vanilla base_shop hook 接入 AutoTato 决策器后的核心逻辑.
+# 目的: 验证 vanilla base_shop hook 接入 AutoTato 决策器后的核心逻辑.
 #       主要面向 Bridge.process_shop 的纯函数行为与容错矩阵.
 #
 # 为什么不能开真商店:
 #   hook 本身 (apply_decision 写回 vanilla _shop_items / 改 ShopItem 节点状态)
-#   依赖运行时真实 ShopItem 节点树 + RunData + ItemService, P3 烟雾在主菜单
+#   依赖运行时真实 ShopItem 节点树 + RunData + ItemService, 商店 Hook 烟雾在主菜单
 #   即触发, 无法构造这些上下文, 因此 hook 副作用部分留人手开局回归验证.
 #   烟雾的可验证范围 = Bridge.process_shop (纯函数) + 容错矩阵.
 #
-# 与 P0 / P1 / P2 烟雾独立:
-#   - P0 测 schema 层 (Effect / Keys / Util)
-#   - P1 测决策器层 (static 纯函数)
-#   - P2 测 Bridge config / CRUD / 三个 decide_* 入口
-#   - P3 测 Bridge.process_shop 整商店决策 + 容错
+# 与其他模块烟雾独立:
+#   - 数据层测 schema 层 (Effect / Keys / Util)
+#   - 决策层测决策器 (static 纯函数)
+#   - Bridge 测 config / CRUD / 三个 decide_* 入口
+#   - 商店 Hook 测 Bridge.process_shop 整商店决策 + 容错
 #
-# 触发: 默认关闭. mod_main 把 DEV_RUN_P3_SMOKE 改 true 即可在游戏启动时自动
+# 触发: 默认关闭. mod_main 把 DEV_RUN_SHOP_HOOK_SMOKE 改 true 即可在游戏启动时自动
 #       .new() 出实例并调 run(), 结果写到 godot.log. 亦可通过环境变量
-#       AUTOTATO_P3_SMOKE 在 mod_main 中读取触发.
+#       AUTOTATO_SHOP_HOOK_SMOKE 在 mod_main 中读取触发.
 #
 # 用例总览 (10 个):
 #   1.  Bridge 已注册到 Engine meta
@@ -41,7 +41,7 @@ extends Reference
 # ============================================================================
 
 
-const LOG_NAME := "fengyifan-AutoTato:P3SmokeTest"
+const LOG_NAME := "fengyifan-AutoTato:ShopHookSmokeTest"
 
 const Bridge = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 const Result = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/decision_result.gd")
@@ -75,7 +75,7 @@ class _MockBaseShop:
 # ============================================================================
 
 func run() -> void:
-	_log("════════ P3 烟雾测试开始 ════════")
+	_log("════════ 商店 Hook 烟雾测试开始 ════════")
 
 	_test_1_bridge_meta_registered()
 	_test_2_get_global_not_null()
@@ -88,10 +88,10 @@ func run() -> void:
 	_test_9_lockable_lock_until_cursed()
 	_test_10_slot_index_preserved()
 
-	_log("════════ P3 烟雾测试结束 ════════")
+	_log("════════ 商店 Hook 烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败 / %d 警告" % [_pass, _fail, _warn])
 	if _fail > 0:
-		ModLoaderLog.error("P3 商店 hook 有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
+		ModLoaderLog.error("商店 hook 有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
 
 
 # ============================================================================
@@ -345,7 +345,7 @@ func _make_mock_base_shop(slots_for_player0: Array) -> _MockBaseShop:
 	return mock
 
 
-# 通用 mock ItemData dict. 字段与 P1/P2 烟雾保持一致, effects=[] 不触阈值.
+# 通用 mock ItemData dict. 字段与决策/Bridge 烟雾保持一致, effects=[] 不触阈值.
 # 默认 is_lockable=false, is_cursed=false; lockable 用例需要时显式传 true.
 func _make_mock_item(
 		my_id: String,
@@ -367,7 +367,7 @@ func _make_mock_item(
 
 
 # ============================================================================
-# 测试辅助 (照搬 P2 风格)
+# 测试辅助 (照搬 Bridge 风格)
 # ============================================================================
 
 func _section(title: String) -> void:

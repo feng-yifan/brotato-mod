@@ -1,7 +1,7 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P2 v7 烟雾测试 (v7 schema)
+# AutoTato — Bridge v6 烟雾测试 (v6 schema)
 # ============================================================================
 # 用例总览 (10 个):
 #   1. 默认 config 不含 v6.1 旧字段 (upgrade_action/shop_action/chest_action)
@@ -16,7 +16,7 @@ extends Reference
 #   10. general 新字段 (shop_respect_thresholds, chest_respect_thresholds)
 # ============================================================================
 
-const LOG_NAME := "fengyifan-AutoTato:P2v7SmokeTest"
+const LOG_NAME := "fengyifan-AutoTato:BridgeV6SmokeTest"
 const Bridge = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 
 var _pass := 0
@@ -24,7 +24,7 @@ var _fail := 0
 
 
 func run() -> void:
-	_log("════════ P2 v7 烟雾测试开始 ════════")
+	_log("════════ Bridge v6 烟雾测试开始 ════════")
 	_test_1_v7_no_old_fields()
 	_test_2_thresholds_mode_value_only()
 	_test_3_weapon_rules()
@@ -35,10 +35,10 @@ func run() -> void:
 	_test_8_upgrade_priority()
 	_test_9_upgrade_default()
 	_test_10_general()
-	_log("════════ P2 v7 烟雾测试结束 ════════")
+	_log("════════ Bridge v6 烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败" % [_pass, _fail])
 	if _fail > 0:
-		ModLoaderLog.error("P2 v7 有 %d 项失败" % _fail, LOG_NAME)
+		ModLoaderLog.error("Bridge v6 有 %d 项失败" % _fail, LOG_NAME)
 
 
 func _test_1_v7_no_old_fields() -> void:

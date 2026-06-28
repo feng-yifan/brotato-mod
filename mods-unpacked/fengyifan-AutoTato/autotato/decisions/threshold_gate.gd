@@ -21,7 +21,7 @@ class_name AT_ThresholdGate
 #   1. 任一 related stat 未触达, 不反转 (should_reject = false).
 #   2. 任一 related stat 配成 unlimited, 不反转 (因永远不触达 = 未触达).
 #   3. 仅当全部 related stat 都触达限制, 才反转 (should_reject = true).
-#   这是 B 项语义 (用户在 P0 设计中明确): "任一未触达即不反转".
+#   这是 B 项语义 (用户在数据层设计中明确): "任一未触达即不反转".
 #
 # 联动闭包扫描:
 #   有些物品本身并不直接修饰用户配阈值的那个 stat, 但通过 vanilla 的联动
@@ -38,7 +38,7 @@ class_name AT_ThresholdGate
 #     - 非 stat_* 端点 (如 Vampire 的 percent_missing_hp → lifesteal) 不入闭包,
 #       _hash_to_stat_key 会过滤掉这种 hash
 #
-# 与 P0 数据层对接点:
+# 与数据层对接点:
 #   - ItemU.get_raw_effects(item) 拿 vanilla Effect 数组
 #   - Parser.parse_list(effects) 解析成 EffectInfo
 #   - info.is_stat_modifier() 过滤出"直接 stat 加成"

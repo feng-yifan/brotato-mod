@@ -1,19 +1,19 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P4 烟雾测试 (ConfigManager 配置持久化)
+# AutoTato — 持久化层烟雾测试 (ConfigManager 配置持久化)
 # ============================================================================
 #
-# 目的: 验证 P4 把内存 _config 接入磁盘 session_config.json 后的核心逻辑.
+# 目的: 验证内存 _config 接入磁盘 session_config.json 后的核心逻辑.
 #   - 前 9 用例: ConfigManager 的 IO / Schema 迁移 / 损坏兜底 / 原子写
 #   - 后 3 用例: Bridge 整合 (set_* 触发 _persist; 新建实例 _init 走 load)
 #
-# 与 P0 / P1 / P2 / P3 烟雾独立:
-#   - P0 测 schema 层 (Effect / Keys / Util)
-#   - P1 测决策器层 (static 纯函数)
-#   - P2 测 Bridge config / CRUD / 三个 decide_* 入口
-#   - P3 测 Bridge.process_shop 整商店决策 + 容错
-#   - P4 测 ConfigManager (IO/迁移/兜底/原子) + Bridge 持久化集成
+# 与其他模块烟雾独立:
+#   - 数据层测 schema 层 (Effect / Keys / Util)
+#   - 决策层测决策器 (static 纯函数)
+#   - Bridge 测 config / CRUD / 三个 decide_* 入口
+#   - 商店 Hook 测 Bridge.process_shop 整商店决策 + 容错
+#   - 持久化层测 ConfigManager (IO/迁移/兜底/原子) + Bridge 持久化集成
 #
 # 关键警示:
 #   ConfigManager.get_config_path() 写死 user://AutoTato/session_config.json,
@@ -23,9 +23,9 @@ extends Reference
 #   失败也会执行 _restore_real_config (放在 run 末尾, 无 early return).
 #
 # 触发:
-#   默认关闭, mod_main 把 DEV_RUN_P4_SMOKE 改 true 即可在游戏启动时自动
+#   默认关闭, mod_main 把 DEV_RUN_PERSISTENCE_SMOKE 改 true 即可在游戏启动时自动
 #   .new() 出实例并调 run(), 结果写到 godot.log. 亦可通过环境变量
-#   AUTOTATO_P4_SMOKE 在 mod_main 中读取触发.
+#   AUTOTATO_PERSISTENCE_SMOKE 在 mod_main 中读取触发.
 #
 # 用例总览 (12 个):
 #   1.  get_config_path 返回值非空 + 含 "AutoTato/session_config.json"
@@ -43,7 +43,7 @@ extends Reference
 # ============================================================================
 
 
-const LOG_NAME := "fengyifan-AutoTato:P4SmokeTest"
+const LOG_NAME := "fengyifan-AutoTato:PersistenceSmokeTest"
 
 const ConfigManager = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/config_manager.gd")
 const Bridge        = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
@@ -65,7 +65,7 @@ var _had_real_config: bool = false
 
 func run() -> void:
 	_backup_real_config()
-	_log("════════ P4 烟雾测试开始 ════════")
+	_log("════════ 持久化层烟雾测试开始 ════════")
 
 	_test_1_get_config_path()
 	_test_2_load_file_not_exists()
@@ -80,10 +80,10 @@ func run() -> void:
 	_test_11_bridge_persist_set_threshold()
 	_test_12_bridge_first_launch_no_file()
 
-	_log("════════ P4 烟雾测试结束 ════════")
+	_log("════════ 持久化层烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败 / %d 警告" % [_pass, _fail, _warn])
 	if _fail > 0:
-		ModLoaderLog.error("P4 ConfigManager 有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
+		ModLoaderLog.error("ConfigManager 有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
 
 	# 关键: 还原放最末. _assert 不抛异常仅累 _fail, run 不会 early return,
 	# 所以这里一定会执行, 玩家真实 config 不被烟雾污染.
@@ -426,7 +426,7 @@ func _test_12_bridge_first_launch_no_file() -> void:
 
 
 # ============================================================================
-# 工具函数 (照搬 P3 风格)
+# 工具函数 (照搬商店 Hook 风格)
 # ============================================================================
 
 # 直接写原始字符串到 config_path. 用于构造损坏 / 不合法 / 空文件场景.

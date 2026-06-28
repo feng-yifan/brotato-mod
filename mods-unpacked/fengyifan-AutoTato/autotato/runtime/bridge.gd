@@ -2,7 +2,7 @@ extends Reference
 class_name AT_Bridge
 
 # ============================================================================
-# AT_Bridge — P2 引入的薄适配层 (decision 层 ↔ hook 层胶水)
+# AT_Bridge — 薄适配层 (decision 层 ↔ hook 层胶水)
 # v7: 阈值纯化 (mode+value), per-context action 移到各自上下文
 # ----------------------------------------------------------------------------
 # Config schema (v7):

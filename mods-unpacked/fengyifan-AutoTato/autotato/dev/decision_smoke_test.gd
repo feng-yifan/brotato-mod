@@ -1,16 +1,16 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P1 烟雾测试
+# AutoTato — 决策层烟雾测试
 # ============================================================================
 #
-# 目的: 验证 P1 决策器层 (decision_result / threshold_gate / item_decider /
+# 目的: 验证决策器层 (decision_result / threshold_gate / item_decider /
 #       upgrade_decider) 在不接入运行时的纯函数语义下行为正确.
 #
-# 与 P0 烟雾脚本独立: P0 测的是数据层 (Effect 解析 / Keys 字典 / Util 双形态),
-# P1 测的是决策层 (action 路由 / 阈值闸门 / 升级 4 选 1 排序).
+# 与数据层烟雾脚本独立: 数据层测的是数据解析 (Effect 解析 / Keys 字典 / Util 双形态),
+# 决策层测的是决策器 (action 路由 / 阈值闸门 / 升级 4 选 1 排序).
 #
-# 触发: 默认关闭. mod_main.gd 把 DEV_RUN_P1_SMOKE 改 true 即可在游戏启动时
+# 触发: 默认关闭. mod_main.gd 把 DEV_RUN_DECISION_SMOKE 改 true 即可在游戏启动时
 #       自动跑 run(), 结果写到 godot.log.
 #
 # 用例总览 (13 个):
@@ -39,7 +39,7 @@ extends Reference
 #     speed/crit_chance), 真实跑 EffectParser 解析链路
 # ============================================================================
 
-const LOG_NAME := "fengyifan-AutoTato:P1SmokeTest"
+const LOG_NAME := "fengyifan-AutoTato:DecisionSmokeTest"
 
 const Result   = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/decision_result.gd")
 const Gate     = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/threshold_gate.gd")
@@ -62,7 +62,7 @@ var _warn := 0
 # 入口
 # ----------------------------------------------------------------------------
 func run() -> void:
-	_log("════════ P1 烟雾测试开始 ════════")
+	_log("════════ 决策层烟雾测试开始 ════════")
 
 	# Item Decider
 	_test_1_reject_action()
@@ -83,10 +83,10 @@ func run() -> void:
 	_test_12_upgrade_min_tier_quality_first()
 	_test_13_upgrade_disabled_returns_minus_one()
 
-	_log("════════ P1 烟雾测试结束 ════════")
+	_log("════════ 决策层烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败 / %d 警告" % [_pass, _fail, _warn])
 	if _fail > 0:
-		ModLoaderLog.error("P1 决策器有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
+		ModLoaderLog.error("决策器有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
 
 
 # ============================================================================
@@ -505,7 +505,7 @@ func _make_upgrade_dict(my_id: String, tier: int) -> Dictionary:
 
 
 # ============================================================================
-# 测试辅助 (照搬 P0 风格)
+# 测试辅助 (照搬数据层风格)
 # ============================================================================
 
 func _section(title: String) -> void:

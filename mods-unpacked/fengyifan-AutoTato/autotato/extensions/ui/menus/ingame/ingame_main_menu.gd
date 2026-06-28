@@ -1,7 +1,7 @@
 extends "res://ui/menus/ingame/ingame_main_menu.gd"
 
 # ============================================================================
-# AutoTato — ingame_main_menu Script Extension (P5.1)
+# AutoTato — ingame_main_menu Script Extension
 # ----------------------------------------------------------------------------
 # 这是 ModLoader v6 Script Extension, hook vanilla 暂停菜单 (战斗 + shop 共用).
 #

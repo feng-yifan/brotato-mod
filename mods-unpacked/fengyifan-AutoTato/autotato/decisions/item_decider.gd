@@ -2,7 +2,7 @@ extends Reference
 class_name AT_ItemDecider
 
 # ============================================================================
-# AT_ItemDecider — 商店 / 箱子物品决策入口 (P1)
+# AT_ItemDecider — 商店 / 箱子物品决策入口
 # ----------------------------------------------------------------------------
 # 职责:
 #   给定一个 item_data (ItemData Resource 或 Dictionary), 在用户配置的 rule
@@ -43,11 +43,11 @@ class_name AT_ItemDecider
 #              lock_until_cursed 不通过 -> LOCKED, 其余不通过 -> SKIPPED
 #   8. dispatch -> STATE_PURCHASED
 #
-# 与 P0 数据层对接点:
+# 与数据层对接点:
 #   - ItemU.get_id / get_base_value / is_cursed / is_at_limit
 #   - Gate.should_reject_by_threshold
-#   - 价格用 ItemU.get_base_value (P1 不接入 ItemService.get_value 含 wave
-#     inflation, 后续 P2 再升级)
+#   - 价格用 ItemU.get_base_value (不接入 ItemService.get_value 含 wave
+#     inflation, 后续再升级)
 #
 # 设计约束:
 #   - 纯 static func, 决策器不持有任何状态
@@ -105,7 +105,7 @@ const STATE_LABELS := {
 #                 currency                   : int     玩家当前货币 (hp_shop 时为 max_hp, 否则金币)
 #                 player_index               : int     玩家槽 (本地 1P = 0)
 #                 is_crate                   : bool    true=箱子, false=商店
-#                 current_danger             : int     0-5, P1 不用但透传保留
+#                 current_danger             : int     0-5, 透传保留
 #                 threshold_config           : Dictionary (传给 ThresholdGate)
 #                 min_gold_balance           : int     购物后货币安全垫
 #                 item_price_threshold       : int     单件价格上限 (0 = 不限)

@@ -1,10 +1,10 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P3.5 烟雾测试 (升级 hook)
+# AutoTato — 升级 Hook 烟雾测试 (升级 hook)
 # ============================================================================
 #
-# 目的: 验证 P3.5 在 vanilla UpgradesUI 上挂的升级面板 hook 链路前置条件
+# 目的: 验证在 vanilla UpgradesUI 上挂的升级面板 hook 链路前置条件
 #       (hook 文件存在 + GDScript 解析通过), 并复测 Bridge.decide_upgrade 在
 #       真实 vanilla UpgradeData tres 与 mock dict 两种输入下的核心分支.
 #
@@ -15,15 +15,15 @@ extends Reference
 #   开局回归验证.
 #
 # 与其他烟雾的分工:
-#   - P0: schema (Effect / Keys / Util / ThresholdGate)
-#   - P1: 决策器层 (static 纯函数)
-#   - P2: Bridge config / CRUD / 三个 decide_* 入口
-#   - P3: Bridge.process_shop 整商店决策 + 商店 hook 容错矩阵
-#   - P3.5: 升级 hook 文件就绪态 + Bridge.decide_upgrade 真实 tres 输入
+#   - 数据层: schema (Effect / Keys / Util / ThresholdGate)
+#   - 决策层: 决策器 (static 纯函数)
+#   - Bridge: config / CRUD / 三个 decide_* 入口
+#   - 商店 Hook: Bridge.process_shop 整商店决策 + 容错矩阵
+#   - 升级 Hook: 文件就绪态 + Bridge.decide_upgrade 真实 tres 输入
 #
-# 触发: 默认关闭. mod_main 的 DEV_RUN_P3_5_SMOKE 改 true 即在游戏启动时
+# 触发: 默认关闭. mod_main 的 DEV_RUN_UPGRADE_HOOK_SMOKE 改 true 即在游戏启动时
 #       .new() 出实例并 run(), 结果写到 godot.log; 亦可通过环境变量
-#       AUTOTATO_P3_5_SMOKE 在 mod_main 中读取触发.
+#       AUTOTATO_UPGRADE_HOOK_SMOKE 在 mod_main 中读取触发.
 #
 # 用例总览 (8 个):
 #   1. hook 文件存在 (ResourceLoader + File 二次校验)
@@ -39,7 +39,7 @@ extends Reference
 # ============================================================================
 
 
-const LOG_NAME := "fengyifan-AutoTato:P3.5SmokeTest"
+const LOG_NAME := "fengyifan-AutoTato:UpgradeHookSmokeTest"
 
 const Bridge = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 const UpgDec = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/upgrade_decider.gd")
@@ -65,7 +65,7 @@ var _warn := 0
 # ============================================================================
 
 func run() -> void:
-	_log("════════ P3.5 烟雾测试开始 ════════")
+	_log("════════ 升级 Hook 烟雾测试开始 ════════")
 
 	_test_1_hook_file_exists()
 	_test_2_hook_extends_vanilla()
@@ -76,10 +76,10 @@ func run() -> void:
 	_test_7_decide_upgrade_no_pick_on_disabled()
 	_test_8_decide_upgrade_with_threshold()
 
-	_log("════════ P3.5 烟雾测试结束 ════════")
+	_log("════════ 升级 Hook 烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败 / %d 警告" % [_pass, _fail, _warn])
 	if _fail > 0:
-		ModLoaderLog.error("P3.5 升级 hook 有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
+		ModLoaderLog.error("升级 hook 有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
 
 
 # ============================================================================
@@ -263,7 +263,7 @@ func _test_7_decide_upgrade_no_pick_on_disabled() -> void:
 #   烟雾环境 RunData 不可用, Gate 内 player 当前 stat_speed 视为 0,
 #   不触达 20 -> 不反转 -> filtered 非空 -> 选 0.
 #
-#   P1 已覆盖 ThresholdGate 全矩阵, 这里只验"决策器在 threshold 路径不崩".
+#   决策层已覆盖 ThresholdGate 全矩阵, 这里只验"决策器在 threshold 路径不崩".
 #   断言放宽: 返回 != NO_PICK 即认为通过 (允许 0 或其他非 -1 值).
 # ----------------------------------------------------------------------------
 func _test_8_decide_upgrade_with_threshold() -> void:
@@ -301,7 +301,7 @@ func _make_mock_upgrade(tier: int, effects: Array = []) -> Dictionary:
 
 
 # ============================================================================
-# 测试辅助 (照搬 P3 风格)
+# 测试辅助 (照搬商店 Hook 风格)
 # ============================================================================
 
 func _section(title: String) -> void:

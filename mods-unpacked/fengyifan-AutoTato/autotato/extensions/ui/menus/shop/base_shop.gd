@@ -1,7 +1,7 @@
 extends "res://ui/menus/shop/base_shop.gd"
 
 # ============================================================================
-# AutoTato — base_shop Script Extension (P3)
+# AutoTato — base_shop Script Extension
 # ----------------------------------------------------------------------------
 # 这是 ModLoader v6 的 Script Extension. mod_main._init() 通过
 # `ModLoaderMod.install_script_extension()` 把本脚本注入为 vanilla

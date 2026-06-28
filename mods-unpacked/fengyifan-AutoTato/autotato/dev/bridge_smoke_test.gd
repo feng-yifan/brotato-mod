@@ -1,20 +1,20 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P2 烟雾测试 (Bridge)
+# AutoTato — Bridge 层烟雾测试 (Bridge)
 # ============================================================================
 #
-# 目的: 验证 P2 Bridge 层在不接入 vanilla autoload 的前提下行为正确,
+# 目的: 验证 Bridge 层在不接入 vanilla autoload 的前提下行为正确,
 #       覆盖默认 config / CRUD / 决策入口 / 总开关 / 深拷贝五个维度.
 #
-# 与 P0 / P1 烟雾脚本独立:
-#   - P0 测数据层 (Effect 解析 / Keys / Util 双形态)
-#   - P1 测决策器层 (action 路由 / 阈值闸门 / 升级 4 选 1 排序, static 纯函数)
-#   - P2 测 Bridge 胶水层 (持状态的 config + 三个决策入口)
+# 与其他模块烟雾独立:
+#   - 数据层测 Effect 解析 / Keys / Util 双形态
+#   - 决策层测 action 路由 / 阈值闸门 / 升级 4 选 1 排序 (static 纯函数)
+#   - Bridge 测胶水层 (持状态的 config + 三个决策入口)
 #
-# 触发: 默认关闭. mod_main.gd 把 DEV_RUN_P2_SMOKE 改 true 即可在游戏启动时
+# 触发: 默认关闭. mod_main.gd 把 DEV_RUN_BRIDGE_SMOKE 改 true 即可在游戏启动时
 #       自动 .new() 出实例并调 run(), 结果写到 godot.log.
-#       亦可通过 AUTOTATO_P2_SMOKE 环境变量在 mod_main 中读取触发.
+#       亦可通过 AUTOTATO_BRIDGE_SMOKE 环境变量在 mod_main 中读取触发.
 #
 # 用例总览 (15 个):
 #   默认 config / CRUD (5 用例)
@@ -49,7 +49,7 @@ extends Reference
 #   - 用例 10 用 vanilla Medal .tres 真实跑 EffectParser 解析链路
 # ============================================================================
 
-const LOG_NAME := "fengyifan-AutoTato:P2SmokeTest"
+const LOG_NAME := "fengyifan-AutoTato:BridgeSmokeTest"
 
 const Bridge = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 const Result = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/decision_result.gd")
@@ -70,7 +70,7 @@ var _warn := 0
 # 入口
 # ----------------------------------------------------------------------------
 func run() -> void:
-	_log("════════ P2 烟雾测试开始 ════════")
+	_log("════════ Bridge 层烟雾测试开始 ════════")
 
 	# 默认 config / CRUD
 	_test_1_default_config()
@@ -95,10 +95,10 @@ func run() -> void:
 	_test_14_set_general_passthrough()
 	_test_15_remove_threshold_returns_empty()
 
-	_log("════════ P2 烟雾测试结束 ════════")
+	_log("════════ Bridge 层烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败 / %d 警告" % [_pass, _fail, _warn])
 	if _fail > 0:
-		ModLoaderLog.error("P2 Bridge 有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
+		ModLoaderLog.error("Bridge 层有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
 
 
 # ============================================================================
@@ -438,7 +438,7 @@ func _test_15_remove_threshold_returns_empty() -> void:
 # Mock 数据构造器
 # ============================================================================
 
-# 通用 mock ItemData dict. 与 P1 烟雾保持字段一致, 默认 effects=[] 不触阈值.
+# 通用 mock ItemData dict. 与决策层烟雾保持字段一致, 默认 effects=[] 不触阈值.
 func _make_mock_item(
 		my_id: String,
 		value: int = 20,
@@ -473,7 +473,7 @@ func _make_mock_upgrade(tier: int, effects: Array = []) -> Dictionary:
 
 
 # ============================================================================
-# 测试辅助 (照搬 P1 风格)
+# 测试辅助 (照搬决策层风格)
 # ============================================================================
 
 func _section(title: String) -> void:

@@ -1,7 +1,7 @@
 extends "res://ui/menus/ingame/upgrades_ui.gd"
 
 # ============================================================================
-# AutoTato — upgrades_ui Script Extension (P3.5 + P3.6)
+# AutoTato — upgrades_ui Script Extension
 # v7: 同步 reroll 循环 + guard 管理
 # ----------------------------------------------------------------------------
 # 决策链路:
@@ -194,7 +194,7 @@ func _get_visible_options(pc) -> Dictionary:
 
 
 # ----------------------------------------------------------------------------
-# 箱子物品决策 (P3.6)
+# 箱子物品决策
 # ----------------------------------------------------------------------------
 
 func _autotato_process_crate_item(bridge, pc, player_index: int) -> void:

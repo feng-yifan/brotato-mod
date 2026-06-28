@@ -2,12 +2,12 @@
 title: AutoTato Mod 架构
 description: >
   AutoTato mod 的分层架构设计，属于 autotato 领域知识。
-  覆盖 P0 数据层（EffectParser/EffectSchema/EffectKeys/ItemDataUtil/
-  WeaponDataUtil/DangerModifier）、P1 决策层（ItemDecider 8 步/
+  覆盖数据层（EffectParser/EffectSchema/EffectKeys/ItemDataUtil/
+  WeaponDataUtil/DangerModifier）、决策层（ItemDecider 8 步/
   UpgradeDecider 6 步/ThresholdGate 闸门/DecisionResult 4 终态）、
-  P2 Bridge 层（配置中心/全局注册/决策入口）、P3 Hook 层（Script Extension
-  挂载点）、P4 持久化层（ConfigManager 原子写/Schema 迁移）、
-  P5 UI 层（配置面板）、烟雾测试系统、核心架构模式。
+  Bridge 层（配置中心/全局注册/决策入口）、Hook 层（Script Extension
+  挂载点）、持久化层（ConfigManager 原子写/Schema 迁移）、
+  UI 层（配置面板）、烟雾测试系统、核心架构模式。
 game_version: 1.1.15.4
 ---
 
@@ -21,28 +21,28 @@ game_version: 1.1.15.4
 
 AutoTato 是一个 **Brotato 游戏的智能自动化代理**。它在商店、升级、箱子三个游戏决策点介入，根据用户配置的规则自动做出选择（购买/锁定/丢弃），同时保留玩家手动的最终控制权。
 
-## 分层架构（P0–P5）
+## 分层架构
 
 ```
-P3 Hook 层      — Script Extension 挂载点，接 vanilla 信号
-P2 Bridge 层    — 配置中心 + 胶水，全局单例
-P1 决策层       — 纯函数决策器（ItemDecider / UpgradeDecider / ThresholdGate）
-P0 数据层       — Effect 压扁解析 + 物品/武器查询 + 属性元数据
-P4 持久化层     — 独立 IO 模块（ConfigManager）
-P5 UI 层        — 暂停菜单按钮注入 + 配置面板
+Hook 层      — Script Extension 挂载点，接 vanilla 信号
+Bridge 层    — 配置中心 + 胶水，全局单例
+决策层       — 纯函数决策器（ItemDecider / UpgradeDecider / ThresholdGate）
+数据层       — Effect 压扁解析 + 物品/武器查询 + 属性元数据
+持久化层     — 独立 IO 模块（ConfigManager）
+UI 层        — 暂停菜单按钮注入 + 配置面板
 ```
 
 ### 依赖方向
-上层依赖下层，不可逆。P3 → P2 → P1 → P0。P4 被 P2 调用。P5 独立。
+上层依赖下层，不可逆。Hook 层 → Bridge 层 → 决策层 → 数据层。持久化层被 Bridge 层调用。UI 层独立。
 
 ### 各层状态持有
 | 层 | 有状态？ | 读 vanilla？ | 写 vanilla？ |
 |---|---|---|---|
-| P3 Hook | 不持状态 | ✓ | ✓（通过信号） |
-| P2 Bridge | ✓（Config） | ✗ | ✗ |
-| P1 Decider | 纯函数 | ✗ | ✗ |
-| P0 Data | 静态 util | ✓（封装后） | ✗ |
-| P4 ConfigManager | 静态 IO | ✗ | ✗（只写盘） |
+| Hook 层 | 不持状态 | ✓ | ✓（通过信号） |
+| Bridge 层 | ✓（Config） | ✗ | ✗ |
+| 决策层 | 纯函数 | ✗ | ✗ |
+| 数据层 | 静态 util | ✓（封装后） | ✗ |
+| 持久化层 | 静态 IO | ✗ | ✗（只写盘） |
 
 ---
 
@@ -53,45 +53,45 @@ mods-unpacked/fengyifan-AutoTato/
 ├── manifest.json
 ├── mod_main.gd                          # 入口：注册扩展 + 加载 preload
 ├── autotato/
-│   ├── data/                            # P0 数据层
+│   ├── data/                            # 数据层
 │   │   ├── effect_schema.gd            #   EffectInfo 不可变记录
 │   │   ├── effect_keys.gd             #   效果 key 元数据字典（stat 标签 + misc 标签）
 │   │   ├── effect_parser.gd           #   把 vanilla Effect 压扁为 EffectInfo
 │   │   ├── item_data_util.gd          #   ItemData Resource/Dict 双形态查询
 │   │   ├── weapon_data_util.gd        #   WeaponData 专属查询
 │   │   └── danger_modifier.gd         #   Danger 曲线权重修正
-│   ├── decisions/                      # P1 决策层
+│   ├── decisions/                      # 决策层
 │   │   ├── decision_result.gd         #   4 终态 + 工厂
 │   │   ├── threshold_gate.gd          #   阈值闸门 + 联动闭包扫描
 │   │   ├── item_decider.gd            #   8 步物品决策
 │   │   └── upgrade_decider.gd         #   6 步升级决策
-│   ├── runtime/                        # P2 Bridge + P4
+│   ├── runtime/                        # Bridge + 持久化层
 │   │   ├── bridge.gd                  #   Config 中心 + 全局注册 + 决策入口
 │   │   └── config_manager.gd          #   JSON 读写 + 原子写 + Schema 迁移
-│   ├── extensions/                     # P3 Hook 层（Script Extension）
+│   ├── extensions/                     # Hook 层（Script Extension）
 │   │   └── ui/menus/
 │   │       ├── shop/base_shop.gd      #   商店决策 hook
 │   │       └── ingame/
 │   │           ├── upgrades_ui.gd     #   升级 + 箱子决策 hook
 │   │           └── ingame_main_menu.gd #  暂停菜单按钮注入
-│   ├── ui/                             # P5 UI 层
+│   ├── ui/                             # UI 层
 │   │   ├── config_panel.gd            #   配置面板根节点
 │   │   ├── config_panel.tscn          #   面板场景
 │   │   └── tabs/
-│   │       └── general_tab.gd         #   通用 Tab（P5.1 占位）
+│   │       └── general_tab.gd         #   通用 Tab
 │   └── dev/                            # 烟雾测试
-│       ├── p0_smoke_test.gd
-│       ├── p1_smoke_test.gd
-│       ├── p2_smoke_test.gd
-│       ├── p3_smoke_test.gd
-│       ├── p3_5_smoke_test.gd
-│       ├── p4_smoke_test.gd
-│       └── p5_1_smoke_test.gd
+│       ├── data_smoke_test.gd
+│       ├── decision_smoke_test.gd
+│       ├── bridge_smoke_test.gd
+│       ├── shop_hook_smoke_test.gd
+│       ├── upgrade_hook_smoke_test.gd
+│       ├── persistence_smoke_test.gd
+│       └── config_panel_smoke_test.gd
 ```
 
 ---
 
-## P0 — 数据抽象层
+## 数据抽象层
 
 ### EffectSchema（`effect_schema.gd`）
 
@@ -187,7 +187,7 @@ Danger 难度对 stat 评分权重的修正曲线：
 
 ---
 
-## P1 — 决策层（纯函数，无状态）
+## 决策层（纯函数，无状态）
 
 ### AT_DecisionResult
 
@@ -253,7 +253,7 @@ Step 6: 选第一或卡死回退      → filtered 空时按 ignore_blacklist_on
 
 ---
 
-## P2 — Bridge 层（胶水 + 配置中心）
+## Bridge 层（胶水 + 配置中心）
 
 唯一有状态对象（持有 `_config` 字典）。通过 `Engine.set_meta(META_KEY, self)` 注册为全局单例。
 
@@ -300,7 +300,7 @@ if bridge: bridge.decide_shop_item(item, gold)
 
 ---
 
-## P4 — ConfigManager（独立 IO）
+## ConfigManager（独立 IO）
 
 路径：`user://AutoTato/session_config.json` → `~/.local/share/Brotato/AutoTato/session_config.json`
 
@@ -314,9 +314,9 @@ if bridge: bridge.decide_shop_item(item, gold)
 
 ## 烟雾测试系统
 
-每个阶段都有独立烟雾测试文件（`dev/p*_smoke_test.gd`），通过环境变量启用：
+每个模块都有独立烟雾测试文件，通过环境变量启用：
 ```bash
-AUTOTATO_P0_SMOKE=1 ./Brotato.x86_64
+AUTOTATO_DATA_SMOKE=1 ./Brotato.x86_64
 ```
 
 `mod_main._ready()` 通过 `call_deferred("_run_smoke_test", path, label)` 调度，用 deferred 避免在 `_ready` 链上做长 IO，让其他 mod 先加载完。
@@ -331,7 +331,7 @@ AUTOTATO_P0_SMOKE=1 ./Brotato.x86_64
 
 ## 核心架构模式
 
-### 1. 递归分层（P0→P1→P2→P3）
+### 1. 递归分层（Hook 层 → Bridge 层 → 决策层 → 数据层）
 每层只依赖直接下层，越往下越"纯"（无状态、无副作用）。游戏版本升级时只需适配 Hook 层的 vanilla API 变化，决策核心逻辑不受影响。
 
 ### 2. 不可变结果

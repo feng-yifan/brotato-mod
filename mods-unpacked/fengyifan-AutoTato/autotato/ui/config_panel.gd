@@ -1,7 +1,7 @@
 extends Control
 
 # ============================================================================
-# AutoTato — Config Panel (P5.x UI 根节点)
+# AutoTato — Config Panel (UI 根节点)
 # ----------------------------------------------------------------------------
 # 配置面板根节点 (Control, pause_mode = PAUSE_MODE_PROCESS), 结构:
 #   ConfigPanel (Control, pause_mode = PAUSE_MODE_PROCESS)

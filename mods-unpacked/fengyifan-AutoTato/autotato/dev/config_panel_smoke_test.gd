@@ -1,13 +1,13 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P5.1 烟雾测试 (UI 入口)
+# AutoTato — 配置面板烟雾测试 (UI 入口)
 # ============================================================================
 #
-# 目的: 验证 P5.1 在 vanilla IngameMainMenu 上挂的"配置面板按钮入口"链路前置
+# 目的: 验证 配置面板 在 vanilla IngameMainMenu 上挂的"配置面板按钮入口"链路前置
 #       条件 — hook 文件存在 + ModLoader 安装记录证据 + config_panel 场景与
-#       脚本能 load + general_tab 脚本能 load, 并复测 Bridge P0-P4 行为没被
-#       P5.1 改动碰坏 (decide_shop_item / decide_chest_item 仍可达).
+#       脚本能 load + general_tab 脚本能 load, 并复测 Bridge 核心行为没被
+#       配置面板 改动碰坏 (decide_shop_item / decide_chest_item 仍可达).
 #
 # 为什么不能真触发 UI 交互:
 #   按钮注入到 IngameMainMenu / 面板真弹出 / pause_mode 真生效, 都依赖运行时
@@ -16,15 +16,15 @@ extends Reference
 #   交互留人手开局回归 (打开游戏 -> 进局 -> 按 ESC -> 看按钮 -> 点开面板).
 #
 # 与其他烟雾的分工:
-#   - P0: schema (Effect / Keys / Util / ThresholdGate)
-#   - P1: 决策器层 (static 纯函数)
-#   - P2: Bridge config / CRUD / 三个 decide_* 入口
-#   - P3: Bridge.process_shop 整商店决策 + 商店 hook 容错矩阵
-#   - P3.5: 升级 hook 文件就绪态 + Bridge.decide_upgrade 真实 tres 输入
-#   - P5.1: UI 入口 hook 文件就绪 + config_panel scene/script 解析就绪
+#   - 数据层: schema (Effect / Keys / Util / ThresholdGate)
+#   - 决策层: 决策器 (static 纯函数)
+#   - Bridge: config / CRUD / 三个 decide_* 入口
+#   - 商店 Hook: Bridge.process_shop 整商店决策 + 容错矩阵
+#   - 升级 Hook: 文件就绪态 + Bridge.decide_upgrade 真实 tres 输入
+#   - 配置面板: UI 入口 hook 文件就绪 + config_panel scene/script 解析就绪
 #
-# 触发: 默认关闭. mod_main 的 DEV_RUN_P5_1_SMOKE 改 true 或环境变量
-#       AUTOTATO_P5_1_SMOKE 触发.
+# 触发: 默认关闭. mod_main 的 DEV_RUN_CONFIG_PANEL_SMOKE 改 true 或环境变量
+#       AUTOTATO_CONFIG_PANEL_SMOKE 触发.
 #
 # 用例总览 (6 个):
 #   1. hook 文件存在 (ResourceLoader + File 二次校验)
@@ -32,11 +32,11 @@ extends Reference
 #   3. config_panel.tscn 文件存在
 #   4. config_panel.gd 可 load + 可 .new() 实例化
 #   5. general_tab.gd 可 load + 可 .new() 实例化
-#   6. P0-P4 回归: Bridge.get_global() 仍暴露 decide_shop_item / decide_chest_item
+#   6. 核心回归: Bridge.get_global() 仍暴露 decide_shop_item / decide_chest_item
 # ============================================================================
 
 
-const LOG_NAME := "fengyifan-AutoTato:P5_1SmokeTest"
+const LOG_NAME := "fengyifan-AutoTato:ConfigPanelSmokeTest"
 
 const Bridge = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 
@@ -58,7 +58,7 @@ var _warn := 0
 # ============================================================================
 
 func run() -> void:
-	_log("════════ P5.1 烟雾测试开始 ════════")
+	_log("════════ 配置面板 烟雾测试开始 ════════")
 
 	_test_1_hook_file_exists()
 	_test_2_hook_extends_vanilla()
@@ -67,10 +67,10 @@ func run() -> void:
 	_test_5_general_tab_gd_loads()
 	_test_6_no_regression_on_bridge()
 
-	_log("════════ P5.1 烟雾测试结束 ════════")
+	_log("════════ 配置面板 烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败 / %d 警告" % [_pass, _fail, _warn])
 	if _fail > 0:
-		ModLoaderLog.error("P5.1 UI 入口有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
+		ModLoaderLog.error("配置面板 UI 入口有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
 
 
 # ============================================================================
@@ -198,32 +198,32 @@ func _test_5_general_tab_gd_loads() -> void:
 
 
 # ============================================================================
-# P0-P4 回归 (用例 6)
+# 核心回归 (用例 6)
 # ============================================================================
 
 # ----------------------------------------------------------------------------
-# 用例 6: P0-P4 行为零回归
-#   P5.1 只动 UI 入口 + 配置面板, 不改 Bridge 决策入口. 这里查 Bridge.get_global()
-#   仍能拿到全局实例, 且 decide_shop_item (P3) + decide_chest_item (P3.6) 两个
-#   关键 API 仍可达. 任一失败说明 P5.1 不小心改坏了 Bridge.
+# 用例 6: 核心行为零回归
+#   配置面板 只动 UI 入口 + 配置面板, 不改 Bridge 决策入口. 这里查 Bridge.get_global()
+#   仍能拿到全局实例, 且 decide_shop_item 与 decide_chest_item 两个
+#   关键 API 仍可达. 任一失败说明 配置面板 不小心改坏了 Bridge.
 # ----------------------------------------------------------------------------
 func _test_6_no_regression_on_bridge() -> void:
-	_section("[6] P0-P4 回归: Bridge 全局 + decide_* API 可达")
+	_section("[6] 核心回归: Bridge 全局 + decide_* API 可达")
 
 	var g = Bridge.get_global()
 	_log("  Bridge.get_global()=%s" % str(g))
-	_assert(g != null, "Bridge.get_global() 不应为 null (P2 全局单例)")
+	_assert(g != null, "Bridge.get_global() 不应为 null (全局单例)")
 	if g == null:
 		return
 
 	_assert(g.has_method("decide_shop_item"),
-		"Bridge.get_global() 应仍暴露 decide_shop_item (P3 API)")
+		"Bridge.get_global() 应仍暴露 decide_shop_item")
 	_assert(g.has_method("decide_chest_item"),
-		"Bridge.get_global() 应仍暴露 decide_chest_item (P3.6 API)")
+		"Bridge.get_global() 应仍暴露 decide_chest_item")
 
 
 # ============================================================================
-# 测试辅助 (照搬 P3.5 风格)
+# 测试辅助 (照搬升级 Hook 风格)
 # ============================================================================
 
 func _section(title: String) -> void:

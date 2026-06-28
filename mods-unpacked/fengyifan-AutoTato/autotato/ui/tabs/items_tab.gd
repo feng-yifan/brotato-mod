@@ -1,7 +1,7 @@
 extends Control
 
 # ============================================================================
-# AutoTato — Items Tab (P5.2 物品规则编辑器)
+# AutoTato — Items Tab (物品规则编辑器)
 # ----------------------------------------------------------------------------
 # 将全部物品按 Tier（传说→稀有→精良→普通）分组展示为 7 列可折叠网格。
 # 每张卡片左侧图标、右侧两行显示当前商店/箱子规则文字。
@@ -29,7 +29,7 @@ extends Control
 # ESC 竞态: 弹窗打开时禁用 ConfigPanel._input, 关闭时恢复.
 # 与 PauseMenu/ConfigPanel 的 ESC 竞态修复模式一致.
 #
-# P5.4: 弹窗保存直接调用 Bridge.set_item_rule / remove_item_rule, 自动持久化.
+# 弹窗保存直接调用 Bridge.set_item_rule / remove_item_rule, 自动持久化.
 # ============================================================================
 
 const LOG_NAME := "fengyifan-AutoTato:ItemsTab"

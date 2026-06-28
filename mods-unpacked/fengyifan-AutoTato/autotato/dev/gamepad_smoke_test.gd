@@ -1,10 +1,10 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P6 烟雾测试 (手柄支持)
+# AutoTato — 手柄支持烟雾测试
 # ============================================================================
 #
-# 目的: 验证 P6.1–P6.4 手柄支持改造的代码就绪态:
+# 目的: 验证手柄支持改造的代码就绪态:
 #   - 文件存在 (gamepad_navigator.gd + scene 引用)
 #   - 所有 UI tab 控件已启用 FOCUS_ALL (无 FOCUS_NONE 残留)
 #   - GamepadNavigator 脚本可 load + 可 .new() 实例化
@@ -20,14 +20,14 @@ extends Reference
 #   1. gamepad_navigator.gd 文件存在
 #   2. 所有 UI tab .gd 文件中不含 FOCUS_NONE (已改为 FOCUS_ALL)
 #   3. config_panel.tscn 引用了 gamepad_navigator.gd (load_steps=8 + ExtResource 7)
-#   4. config_panel.gd 含 _grab_initial_focus 方法 (P6.2 入口)
+#   4. config_panel.gd 含 _grab_initial_focus 方法 (手柄支持入口)
 #   5. vanilla FocusEmulator 未被误碰 (pause_menu.tscn 仍含 FocusEmulator 子节点)
 #
-# 触发: 默认关闭. 环境变量 AUTOTATO_P6_SMOKE=1 触发.
+# 触发: 默认关闭. 环境变量 AUTOTATO_GAMEPAD_SMOKE=1 触发.
 # ============================================================================
 
 
-const LOG_NAME := "fengyifan-AutoTato:P6SmokeTest"
+const LOG_NAME := "fengyifan-AutoTato:GamepadSmokeTest"
 
 const PATH_GAMEPAD_NAV_GD := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/gamepad_navigator.gd"
 const PATH_CONFIG_PANEL_TSCN := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/config_panel.tscn"
@@ -49,7 +49,7 @@ var _warn := 0
 
 
 func run() -> void:
-	_log("════════ P6 烟雾测试开始 ════════")
+	_log("════════ 手柄支持烟雾测试开始 ════════")
 
 	_test_1_gamepad_nav_file_exists()
 	_test_2_no_focus_none_in_tab_scripts()
@@ -57,10 +57,10 @@ func run() -> void:
 	_test_4_config_panel_has_focus_methods()
 	_test_5_vanilla_focus_emulator_intact()
 
-	_log("════════ P6 烟雾测试结束 ════════")
+	_log("════════ 手柄支持烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败 / %d 警告" % [_pass, _fail, _warn])
 	if _fail > 0:
-		ModLoaderLog.error("P6 手柄支持有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
+		ModLoaderLog.error("手柄支持有 %d 项失败, 请检查上方日志" % _fail, LOG_NAME)
 
 
 # ----------------------------------------------------------------------------
@@ -122,7 +122,7 @@ func _test_3_tscn_references_navigator() -> void:
 	var content: String = f.get_as_text()
 	f.close()
 
-	# tscn 应包含 load_steps=8 (比 P5.1 多 1 个 ext_resource)
+	# tscn 应包含 load_steps=8 (比配置面板多 1 个 ext_resource)
 	var has_load_steps_8 := "load_steps=8" in content
 	_assert(has_load_steps_8, "config_panel.tscn load_steps 应为 8 (含 GamepadNavigator)")
 
@@ -152,9 +152,9 @@ func _test_4_config_panel_has_focus_methods() -> void:
 		return
 
 	_assert(inst.has_method("_grab_initial_focus"),
-		"config_panel.gd 应含 _grab_initial_focus 方法 (P6.2)")
+		"config_panel.gd 应含 _grab_initial_focus 方法")
 	_assert(inst.has_method("_find_first_focusable"),
-		"config_panel.gd 应含 _find_first_focusable 方法 (P6.2)")
+		"config_panel.gd 应含 _find_first_focusable 方法")
 
 	inst.free()
 
@@ -175,7 +175,7 @@ func _test_5_vanilla_focus_emulator_intact() -> void:
 
 	var has_focus_emulator := "FocusEmulator" in content
 	_assert(has_focus_emulator,
-		"vanilla pause_menu.tscn 应仍包含 FocusEmulator (P6 不应误碰 vanilla)")
+		"vanilla pause_menu.tscn 应仍包含 FocusEmulator (不应误碰 vanilla)")
 
 
 # ============================================================================

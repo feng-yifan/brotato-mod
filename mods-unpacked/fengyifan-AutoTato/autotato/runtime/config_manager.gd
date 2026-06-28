@@ -2,7 +2,7 @@ extends Reference
 class_name AT_ConfigManager
 
 # ============================================================================
-# AutoTato — Config Manager (P4 配置持久化层)
+# AutoTato — Config Manager (配置持久化层)
 # ----------------------------------------------------------------------------
 # 职责:
 #   把 Bridge 内存里的 _config dict 与磁盘 session_config.json 互相搬运. 只

@@ -1,10 +1,10 @@
 extends Reference
 
 # ============================================================================
-# AutoTato — P0 烟雾测试
+# AutoTato — 数据层烟雾测试
 # ============================================================================
 #
-# 目的：验证 P0 数据层（effect_schema / effect_parser / effect_keys /
+# 目的：验证数据层（effect_schema / effect_parser / effect_keys /
 #       item_data_util / weapon_data_util / danger_modifier）能正确解析
 #       vanilla Brotato 1.1.15.4 的真实资源。本脚本只读，不改任何状态。
 #
@@ -13,7 +13,7 @@ extends Reference
 #   2. 用环境变量启动：AUTOTATO_SMOKE=1 ./Brotato.x86_64
 # 启用后游戏启动会自动跑 run()，结果写到 godot.log。
 #
-# 验收的 7 条标准（与 P0 规划文档对应）：
+# 验收的 7 条标准：
 #   ✅1. Anvil (KEY_VALUE) 正确解析为 stat_armor@upgrade_random_weapon
 #   ✅2. stat_damage 与 stat_percent_damage 在 effect_keys 中单位不同
 #   ✅3. EffectInfo.is_replace() 与 is_stat_modifier() 区分正确
@@ -46,7 +46,7 @@ var _warn := 0
 # 入口
 # ----------------------------------------------------------------------------
 func run() -> void:
-	_log("════════ P0 烟雾测试开始 ════════")
+	_log("════════ 数据层烟雾测试开始 ════════")
 
 	_test_1_anvil_parse()
 	_test_2_damage_units_distinct()
@@ -55,10 +55,10 @@ func run() -> void:
 	_test_5_item_util_dual_form()
 	_test_6_danger_weight()
 
-	_log("════════ P0 烟雾测试结束 ════════")
+	_log("════════ 数据层烟雾测试结束 ════════")
 	_log("结果: %d 通过 / %d 失败 / %d 警告" % [_pass, _fail, _warn])
 	if _fail > 0:
-		ModLoaderLog.error("P0 数据层有 %d 项失败，请检查上方日志" % _fail, LOG_NAME)
+		ModLoaderLog.error("数据层有 %d 项失败，请检查上方日志" % _fail, LOG_NAME)
 
 
 # ----------------------------------------------------------------------------

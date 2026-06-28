@@ -2,9 +2,9 @@ extends Reference
 class_name AT_DecisionResult
 
 # ============================================================================
-# AT_DecisionResult — 决策器 (P1) 的终态结果对象
+# AT_DecisionResult — 决策器的终态结果对象
 #
-# 本文件位于 P1 决策器层的最叶子位置, 无任何依赖, 独立于 P0 schema 层.
+# 本文件位于决策器层的最叶子位置, 无任何依赖, 独立于 schema 层.
 #
 # 设计要点:
 #
