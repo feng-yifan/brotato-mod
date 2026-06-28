@@ -1,7 +1,16 @@
-# AutoTato ConfigPanel — UI 交互流程
+---
+title: AutoTato ConfigPanel UI 交互流程
+description: >
+  AutoTato 配置面板的 UI 交互设计，属于 autotato 领域知识。
+  覆盖 Vanilla 暂停菜单 UI 树（PauseMenu/IngameMainMenu）、ConfigPanel
+  Scene 结构（CanvasLayer/Background/CenterContainer）、完整交互链路
+  （打开→注入按钮→焦点链重建→关闭）、ESC 竞态问题的根因与解决方案
+  （set_process_input + call_deferred）、手柄导航 P6（GamepadNavigator/
+  焦点可视化/肩键切 Tab/弹窗焦点围栏）、时序图、未实现功能 roadmap。
+game_version: 1.1.15.4
+---
 
-> 来源：AutoTato P5.1 代码 + vanilla 暂停菜单代码分析
-> 更新日期：2026-06-28
+# AutoTato ConfigPanel — UI 交互流程
 
 ---
 

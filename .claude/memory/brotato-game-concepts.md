@@ -1,7 +1,13 @@
-# Brotato 游戏概念与术语
+---
+title: Brotato 游戏概念与术语
+description: >
+  Brotato 原版游戏的机制概念，属于 vanilla 领域知识。
+  覆盖 16 属性体系、武器 Tier 分类、游戏循环（波次→商店→升级）、
+  角色/物品/武器设计、术语定义等。
+game_version: 1.1.15.4
+---
 
-> 来源：游戏源代码分析 + Steam Modding Guide + Brotato Wiki
-> 更新日期：2026-06-25
+# Brotato 游戏概念与术语
 
 ---
 

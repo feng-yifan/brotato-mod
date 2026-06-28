@@ -1,8 +1,15 @@
-# Brotato Vanilla 架构
+---
+title: Brotato Vanilla 架构
+description: >
+  Brotato 原版游戏的代码架构，属于 vanilla 领域知识。
+  覆盖游戏目录结构、60+ autoload 单例职责、效果系统核心架构
+  （Effect Resource、5 种 storage_method、custom_key vs key 区别）、
+  哈希键系统（Keys）、物品/武器/角色数据模型（ItemParentData/WeaponData/
+  CharacterData/WeaponStats）、武器升级链等。
+game_version: 1.1.15.4
+---
 
-> 来源：游戏源代码深度分析
-> 更新日期：2026-06-25
-> 项目根：`/home/viktor/dev/projects/github/fengyifan/brotato-mod/`
+# Brotato Vanilla 架构
 
 ---
 

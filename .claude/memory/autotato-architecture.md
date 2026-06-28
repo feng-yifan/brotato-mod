@@ -1,7 +1,18 @@
+---
+title: AutoTato Mod 架构
+description: >
+  AutoTato mod 的分层架构设计，属于 autotato 领域知识。
+  覆盖 P0 数据层（EffectParser/EffectSchema/EffectKeys/ItemDataUtil/
+  WeaponDataUtil/DangerModifier）、P1 决策层（ItemDecider 8 步/
+  UpgradeDecider 6 步/ThresholdGate 闸门/DecisionResult 4 终态）、
+  P2 Bridge 层（配置中心/全局注册/决策入口）、P3 Hook 层（Script Extension
+  挂载点）、P4 持久化层（ConfigManager 原子写/Schema 迁移）、
+  P5 UI 层（配置面板）、烟雾测试系统、核心架构模式。
+game_version: 1.1.15.4
+---
+
 # AutoTato Mod 架构
 
-> 来源：mod 源代码全量阅读
-> 更新日期：2026-06-25
 > Mod 目录：`mods-unpacked/fengyifan-AutoTato/`
 
 ---

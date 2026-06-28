@@ -1,7 +1,14 @@
-# Brotato Mod 开发框架
+---
+title: Brotato Mod 开发框架
+description: >
+  Brotato mod 开发的基础知识，属于 modding 领域知识。
+  覆盖 ModLoader 6.3.0 机制与 API、Script Extension 扩展模式、
+  manifest.json / mod_main.gd 生命周期、注册新内容流程（ItemService）、
+  路径约定与日志规范、DebugService 调试选项、开发工作流与安全红线。
+game_version: 1.1.15.4
+---
 
-> 来源：Steam Modding Guide + Modding Help + Brotato Wiki + 源代码分析
-> 更新日期：2026-06-25
+# Brotato Mod 开发框架
 
 ---
 

@@ -30,6 +30,7 @@
 /.claude/*
 !/.claude/memory/
 !/.claude/settings.json
+!/.claude/skills/
 # （mods-unpacked 内的 mod 文件夹要全部纳入版本管理）
 mods-unpacked/*/translations/.import/
 mods-unpacked/*/resources/.import/
