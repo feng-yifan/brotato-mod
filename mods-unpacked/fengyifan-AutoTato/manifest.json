@@ -1,15 +1,15 @@
 {
     "name": "AutoTato",
     "namespace": "fengyifan",
-    "version_number": "0.2.0",
-    "description": "Automation and QoL helpers for Brotato. (P0 reboot: clean data layer.)",
+    "version_number": "1.1.0",
+    "description": "商店/升级/箱子自动决策 + 内置配置面板。支持属性阈值限制、武器类别规则、中英双语。 / Automates shop, upgrade, and chest decisions with an in-game config panel. Stat thresholds, weapon category rules, zh-Hans-CN & EN.",
     "website_url": "https://github.com/fengyifan/brotato-mod",
     "dependencies": [],
     "extra": {
         "godot": {
             "authors": ["fengyifan"],
-            "tags": ["Utilities", "GUI"],
-            "description_rich": "AutoTato is being rebuilt from scratch. This is the P0 build: only the data layer (effect parser, item/weapon helpers, danger weighting) is wired up. Runtime decisions are not yet active.",
+            "tags": ["Utilities", "GUI", "Gameplay"],
+            "description_rich": "[EN]\nAutoTato is a smart automation agent for Brotato. It makes decisions for you during shop, upgrade, and chest moments — following rules you set — while leaving you in full control at any time.\n\nFeatures:\n- Shop automation: auto-buy, lock-until-cursed, cursed-only, or reject per-item\n- Upgrade automation: tier priority, stat priority, and forbidden stat filtering\n- Chest automation: auto-take or discard\n- Threshold limits: upper/lower/unlimited caps for 24+ stats (armor, speed, dodge, etc.)\n- Weapon category rules: auto-buy rules per weapon class (melee, ranged, etc.)\n- In-game config panel: 5-tab UI accessible via the AutoTato button in the pause menu\n- Quality of life: turbo mode, auto-start next wave, keep running unfocused\n- Multi-language: Simplified Chinese & English\n\nDefault behaviour: no rules = no intervention. Mod does nothing until you configure it.\n\n[ZH]\nAutoTato 是 Brotato 的智能自动化代理。在商店、升级、箱子三个决策点按你设定的规则自动选择（购买/锁定/丢弃），同时保留玩家手动的最终控制权。\n\n功能：\n- 商店自动化：按物品设置自动购买、锁定等诅咒、仅诅咒、拒绝\n- 升级自动化：品质优先、属性优先级排序、禁止属性过滤\n- 箱子自动化：自动拿取或丢弃\n- 属性阈值：24+ 项属性的上限/下限/不限控制（护甲、速度、闪避等）\n- 武器类别规则：按武器类别设置自动购买策略（近战、远程等）\n- 游戏内配置面板：暂停菜单中点击 AutoTato 按钮打开 5 标签页 UI\n- 便捷功能：急速模式、自动开始下一波、失焦保持运行\n- 多语言：简体中文 & 英语\n\n默认行为：未配置规则时 mod 不干预任何操作，行为等同于原版游戏。",
             "optional_dependencies": [],
             "load_before": [],
             "incompatibilities": [],

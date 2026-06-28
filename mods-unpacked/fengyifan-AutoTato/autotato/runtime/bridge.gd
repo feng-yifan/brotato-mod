@@ -30,6 +30,10 @@ const UpgradeDecider = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/
 const Result         = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/decision_result.gd")
 const Danger         = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/danger_modifier.gd")
 const ItemU          = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/item_data_util.gd")
+# 强制 preload config_manager.gd, 确保 class_name AT_ConfigManager 在 bridge.gd 编译前注册.
+# Godot 3 热重载时编译顺序不保证 class_name 先就绪, 没有这行 preload 会报
+# "Parse Error: The identifier AT_ConfigManager isn't declared in the current scope".
+const _ConfigManager = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/config_manager.gd")
 
 const LOG_NAME       := "fengyifan-AutoTato:Bridge"
 const META_KEY       := "fengyifan-AutoTato:Bridge"
@@ -366,6 +370,13 @@ func set_shop_automation_enabled(val: bool) -> void:
 func set_upgrade_automation_enabled(val: bool) -> void:
 	_config["upgrade_automation_enabled"] = val
 	_persist()
+
+
+# 将配置重置为默认值并持久化. 由 ConfigPanel 的 Reset 按钮调用.
+func reset_to_defaults() -> void:
+	_config = _load_defaults()
+	_persist()
+	_log("配置已重置为默认值 (version=%d)" % SCHEMA_VERSION)
 
 
 # ============================================================================

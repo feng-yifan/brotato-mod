@@ -60,6 +60,7 @@ func _build_ui() -> void:
 	scroll.anchor_right = 1.0
 	scroll.anchor_bottom = 1.0
 	scroll.scroll_horizontal_enabled = false
+	scroll.follow_focus = true
 	add_child(scroll)
 
 	_groups = VBoxContainer.new()

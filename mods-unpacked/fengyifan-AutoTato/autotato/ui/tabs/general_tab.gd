@@ -21,6 +21,7 @@ func _build_ui() -> void:
 	scroll.anchor_right = 1.0
 	scroll.anchor_bottom = 1.0
 	scroll.scroll_horizontal_enabled = false
+	scroll.follow_focus = true
 	add_child(scroll)
 
 	var vbox := VBoxContainer.new()
@@ -75,7 +76,6 @@ func _build_toggle(meta_key: String, title: String, desc: String, callback: Stri
 	cb.name = "%sCheck" % meta_key
 	cb.text = title
 	cb.size_flags_horizontal = SIZE_EXPAND_FILL
-	cb.focus_mode = Control.FOCUS_NONE
 	cb.connect("toggled", self, callback, [meta_key])
 	group.add_child(cb)
 

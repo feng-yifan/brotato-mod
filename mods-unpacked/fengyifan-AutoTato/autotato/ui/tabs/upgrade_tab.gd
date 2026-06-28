@@ -29,6 +29,9 @@ var _unprioritized_vbox: VBoxContainer = null
 var _stat_names: Dictionary = {}
 
 var _refreshing := false
+var _pending_focus_stat: String = ""  # 手柄: 按钮按下后待恢复焦点的 stat_key
+var _pending_focus_action: String = ""  # "up", "down", "remove", "add"
+var _pending_remove_idx: int = -1  # remove 前的索引
 
 
 func _ready() -> void:
@@ -61,6 +64,7 @@ func _build_ui() -> void:
 	scroll.anchor_right = 1.0
 	scroll.anchor_bottom = 1.0
 	scroll.scroll_horizontal_enabled = false
+	scroll.follow_focus = true
 	add_child(scroll)
 
 	# MarginContainer 确保内容不超出视口
@@ -174,8 +178,6 @@ func _make_check(text: String) -> CheckButton:
 	cb.text = text
 	cb.size_flags_horizontal = SIZE_EXPAND_FILL
 	cb.clip_text = true
-	# v7 fix: FOCUS_NONE 防止点击后抢走焦点导致其他按钮 hover 失效
-	cb.focus_mode = Control.FOCUS_NONE
 	return cb
 
 
@@ -232,6 +234,81 @@ func _refresh() -> void:
 	_refresh_priority_ui(priority, bridge)
 
 	_refreshing = false
+	# 手柄: 按钮按下后 refresh 会销毁焦点控件, 延迟恢复
+	call_deferred("_grab_focus_after_refresh")
+
+
+func _grab_focus_after_refresh() -> void:
+	if _pending_focus_stat != "":
+		match _pending_focus_action:
+			"up":
+				# 焦点跟踪到上移后的行
+				var row_ref = _priority_rows.get(_pending_focus_stat)
+				if row_ref and row_ref["up_btn"] and row_ref["up_btn"].visible:
+					row_ref["up_btn"].grab_focus()
+			"down":
+				# 焦点跟踪到下移后的行 — down 按钮
+				var row_ref_d = _priority_rows.get(_pending_focus_stat)
+				if row_ref_d and row_ref_d["down_btn"] and row_ref_d["down_btn"].visible:
+					row_ref_d["down_btn"].grab_focus()
+			"remove":
+				# 找最近的移除按钮: 优先上方, 其次下方, 最后第一个加入按钮
+				var bridge = _get_bridge()
+				var priority = _get_priority_array(bridge) if bridge else []
+				var focus_done := false
+				if _pending_remove_idx < priority.size():
+					var neighbor_stat: String = priority[_pending_remove_idx]
+					var nr = _priority_rows.get(neighbor_stat)
+					if nr and nr["remove_btn"] and nr["remove_btn"].visible:
+						nr["remove_btn"].grab_focus()
+						focus_done = true
+				if not focus_done and priority.size() > 0:
+					var last_stat: String = priority[priority.size() - 1]
+					var lr = _priority_rows.get(last_stat)
+					if lr and lr["remove_btn"] and lr["remove_btn"].visible:
+						lr["remove_btn"].grab_focus()
+						focus_done = true
+				if not focus_done:
+					# 没有优先项了, 回到第一个加入按钮
+					_grab_first_add_button()
+			"add":
+				# 焦点到新加入行的 up 按钮
+				var ar = _priority_rows.get(_pending_focus_stat)
+				if ar and ar["up_btn"] and ar["up_btn"].visible:
+					ar["up_btn"].grab_focus()
+				else:
+					_grab_first_add_button()
+		_pending_focus_stat = ""
+		_pending_focus_action = ""
+		_pending_remove_idx = -1
+		return
+	var first := _find_first_focusable_in(self)
+	if first:
+		first.grab_focus()
+
+
+func _grab_first_add_button() -> void:
+	for child in _unprioritized_vbox.get_children():
+		if child is HBoxContainer:
+			for c in child.get_children():
+				if c is Button and c.name == "AddToPriorityBtn" and c.visible:
+					c.grab_focus()
+					return
+	var first := _find_first_focusable_in(self)
+	if first:
+		first.grab_focus()
+
+
+func _find_first_focusable_in(from: Node) -> Control:
+	for child in from.get_children():
+		if child is Control:
+			var ctrl: Control = child as Control
+			if ctrl.focus_mode == Control.FOCUS_ALL and ctrl.visible:
+				return ctrl
+		var found := _find_first_focusable_in(child)
+		if found:
+			return found
+	return null
 
 
 func _refresh_priority_ui(priority: Array, bridge) -> void:
@@ -260,7 +337,7 @@ func _refresh_priority_ui(priority: Array, bridge) -> void:
 		up_btn.text = "⬆"
 		up_btn.rect_min_size = Vector2(24, 24)
 		up_btn.disabled = (i <= 0)
-		up_btn.focus_mode = Control.FOCUS_NONE
+		up_btn.focus_mode = Control.FOCUS_ALL
 		up_btn.connect("pressed", self, "_on_priority_up", [sk])
 		row.add_child(up_btn)
 
@@ -268,14 +345,14 @@ func _refresh_priority_ui(priority: Array, bridge) -> void:
 		down_btn.text = "⬇"
 		down_btn.rect_min_size = Vector2(24, 24)
 		down_btn.disabled = (i >= priority.size() - 1)
-		down_btn.focus_mode = Control.FOCUS_NONE
+		down_btn.focus_mode = Control.FOCUS_ALL
 		down_btn.connect("pressed", self, "_on_priority_down", [sk])
 		row.add_child(down_btn)
 
 		var remove_btn := Button.new()
 		remove_btn.text = tr("AUTOTATO_REMOVE")
 		remove_btn.rect_min_size = Vector2(48, 24)
-		remove_btn.focus_mode = Control.FOCUS_NONE
+		remove_btn.focus_mode = Control.FOCUS_ALL
 		remove_btn.connect("pressed", self, "_on_priority_remove", [sk])
 		row.add_child(remove_btn)
 
@@ -297,9 +374,10 @@ func _refresh_priority_ui(priority: Array, bridge) -> void:
 		row.add_child(name_label)
 
 		var add_btn := Button.new()
+		add_btn.name = "AddToPriorityBtn"
 		add_btn.text = tr("AUTOTATO_ADD_TO_PRIORITY")
 		add_btn.rect_min_size = Vector2(72, 24)
-		add_btn.focus_mode = Control.FOCUS_NONE
+		add_btn.focus_mode = Control.FOCUS_ALL
 		add_btn.connect("pressed", self, "_on_priority_add", [sk])
 		row.add_child(add_btn)
 
@@ -359,6 +437,8 @@ func _on_priority_up(stat_key: String) -> void:
 	priority[idx] = priority[idx - 1]
 	priority[idx - 1] = tmp
 	bridge.set_upgrade_priority(priority)
+	_pending_focus_stat = stat_key
+	_pending_focus_action = "up"
 	_refresh()
 
 
@@ -374,6 +454,8 @@ func _on_priority_down(stat_key: String) -> void:
 	priority[idx] = priority[idx + 1]
 	priority[idx + 1] = tmp
 	bridge.set_upgrade_priority(priority)
+	_pending_focus_stat = stat_key
+	_pending_focus_action = "down"
 	_refresh()
 
 
@@ -382,8 +464,11 @@ func _on_priority_remove(stat_key: String) -> void:
 	if bridge == null:
 		return
 	var priority = _get_priority_array(bridge)
+	_pending_remove_idx = priority.find(stat_key)
 	priority.erase(stat_key)
 	bridge.set_upgrade_priority(priority)
+	_pending_focus_stat = stat_key
+	_pending_focus_action = "remove"
 	_refresh()
 
 
@@ -395,6 +480,8 @@ func _on_priority_add(stat_key: String) -> void:
 	if not priority.has(stat_key):
 		priority.append(stat_key)
 	bridge.set_upgrade_priority(priority)
+	_pending_focus_stat = stat_key
+	_pending_focus_action = "add"
 	_refresh()
 
 

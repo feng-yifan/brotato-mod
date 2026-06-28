@@ -101,6 +101,7 @@ var _editing_item_id: String = ""
 var _shop_option: OptionButton = null
 var _chest_option: OptionButton = null
 var _popup_title: Label = null
+var _popup_save_btn: Button = null
 
 # ---- 动态创建的节点引用 ----
 var _groups: VBoxContainer = null
@@ -123,9 +124,23 @@ func _ready() -> void:
 # 在此拦截 ESC 关闭弹窗.
 func _input(event: InputEvent) -> void:
 	if _popup and _popup.visible and event.is_action_released("ui_cancel"):
+		# 如果 OptionButton 下拉菜单正在显示, 不关闭弹窗
+		if _has_visible_popup_menu_in(_popup):
+			return
 		_popup.hide()
 		_enable_config_input()
 		get_tree().set_input_as_handled()
+
+
+func _has_visible_popup_menu_in(node: Node) -> bool:
+	for child in node.get_children():
+		if child is PopupMenu:
+			var pm: PopupMenu = child as PopupMenu
+			if pm.visible:
+				return true
+		if _has_visible_popup_menu_in(child):
+			return true
+	return false
 
 
 # 切换到其他 Tab 时自动关闭弹窗, 同时恢复 ConfigPanel 输入
@@ -208,14 +223,14 @@ func _build_static_ui() -> void:
 	_shop_respect_cb = CheckButton.new()
 	_shop_respect_cb.name = "ShopRespectCheck"
 	_shop_respect_cb.text = tr("AUTOTATO_SHOP_RESPECT_THRESHOLDS")
-	_shop_respect_cb.focus_mode = Control.FOCUS_NONE
+	_shop_respect_cb.focus_mode = Control.FOCUS_ALL
 	_shop_respect_cb.connect("toggled", self, "_on_shop_respect_toggled")
 	filter_bar.add_child(_shop_respect_cb)
 
 	_chest_respect_cb = CheckButton.new()
 	_chest_respect_cb.name = "ChestRespectCheck"
 	_chest_respect_cb.text = tr("AUTOTATO_CHEST_RESPECT_THRESHOLDS")
-	_chest_respect_cb.focus_mode = Control.FOCUS_NONE
+	_chest_respect_cb.focus_mode = Control.FOCUS_ALL
 	_chest_respect_cb.connect("toggled", self, "_on_chest_respect_toggled")
 	filter_bar.add_child(_chest_respect_cb)
 
@@ -224,6 +239,7 @@ func _build_static_ui() -> void:
 	scroll.name = "ScrollContainer"
 	scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	scroll.follow_focus = true
 	root.add_child(scroll)
 
 	var content_margin := MarginContainer.new()
@@ -383,7 +399,7 @@ func _build_card(grid: GridContainer, item) -> void:
 	var btn := Button.new()
 	btn.size_flags_horizontal = SIZE_EXPAND_FILL
 	btn.rect_min_size = Vector2(100, CARD_MIN_HEIGHT)
-	btn.focus_mode = Control.FOCUS_NONE
+	btn.focus_mode = Control.FOCUS_ALL
 	btn.mouse_filter = MOUSE_FILTER_STOP
 
 	# Button 不是 Container, 不会自动布局子节点.
@@ -610,6 +626,15 @@ func _on_card_pressed(item_id: String) -> void:
 
 	_popup.popup_centered_ratio(1.0)
 	_disable_config_input()
+	# 弹窗打开后将焦点移到第一个控件, 让手柄可以开始导航
+	call_deferred("_grab_popup_focus")
+
+
+func _grab_popup_focus() -> void:
+	if _shop_option and _shop_option.visible:
+		_shop_option.grab_focus()
+	elif _popup_save_btn and _popup_save_btn.visible:
+		_popup_save_btn.grab_focus()
 
 
 # ========================================================================
@@ -713,17 +738,26 @@ func _ensure_popup() -> void:
 	var btn_hbox := HBoxContainer.new()
 	btn_hbox.alignment = BoxContainer.ALIGN_END
 
-	var cancel_btn := Button.new()
-	cancel_btn.text = tr("AUTOTATO_CANCEL")
-	cancel_btn.focus_mode = Control.FOCUS_NONE
-	cancel_btn.connect("pressed", self, "_on_popup_cancel")
-	btn_hbox.add_child(cancel_btn)
-
+	# 保存在前, 取消在后: 从上方下移时空间导航默认命中保存
 	var save_btn := Button.new()
 	save_btn.text = tr("AUTOTATO_SAVE")
-	save_btn.focus_mode = Control.FOCUS_NONE
+	save_btn.focus_mode = Control.FOCUS_ALL
 	save_btn.connect("pressed", self, "_on_popup_save")
 	btn_hbox.add_child(save_btn)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text = tr("AUTOTATO_CANCEL")
+	cancel_btn.focus_mode = Control.FOCUS_ALL
+	cancel_btn.connect("pressed", self, "_on_popup_cancel")
+	btn_hbox.add_child(cancel_btn)
+	_popup_save_btn = save_btn
+
+	# 手柄导航: Save ↔ Cancel 水平邻居
+	save_btn.focus_neighbour_right = save_btn.get_path_to(cancel_btn)
+	cancel_btn.focus_neighbour_left = cancel_btn.get_path_to(save_btn)
+
+	# 手柄: 从上方 OptionButton 下移至按钮行时默认到保存
+	_chest_option.focus_neighbour_bottom = _chest_option.get_path_to(save_btn)
 
 	content_vbox.add_child(btn_hbox)
 

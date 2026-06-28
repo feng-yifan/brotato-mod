@@ -113,7 +113,18 @@ func _on_panel_close_requested() -> void:
 	# 延迟一帧再恢复 PauseMenu 输入: 当前 ESC 事件还在分发链上, 立刻打开会让 PauseMenu
 	# 接到同一次 ESC 并执行 manage_back() 关掉暂停菜单. call_deferred 跳到下一帧.
 	call_deferred("_set_pause_menu_input_enabled", true)
+	call_deferred("_grab_focus_on_autotato_button")
 	_log("ConfigPanel 已关闭")
+
+
+# 恢复焦点到 AutoTato 按钮, 防止手柄用户关闭面板后丢失焦点
+func _grab_focus_on_autotato_button() -> void:
+	var buttons = get_node_or_null(BUTTONS_NODE_PATH)
+	if buttons == null:
+		return
+	var btn = buttons.get_node_or_null(BUTTON_NAME)
+	if btn:
+		btn.grab_focus()
 
 
 # 切换 vanilla PauseMenu 的 _input 开关. PauseMenu (pause_menu.gd:32) 自身用

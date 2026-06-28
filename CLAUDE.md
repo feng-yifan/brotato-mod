@@ -101,7 +101,9 @@ git add -A --dry-run
 | Brotato 游戏目录 | `/home/viktor/.steam/steam/steamapps/common/Brotato/` |
 | Brotato 存档/日志 | `~/.local/share/Brotato/` |
 | Brotato Workshop 内容 | `~/.steam/steam/steamapps/workshop/content/1942280/` |
-| 本地 mod 测试目录 | `~/.steam/steam/steamapps/workshop/content/1942280/autotato_local_test/` |
+| 本地 mod 测试目录 | ❌ 不可用 (Steam 版 ModLoader 仅加载已订阅 Workshop 物品；`1942280/test/` 等自建目录会被跳过——见 `addons/mod_loader/internal/third_party/steam.gd:46` 的 `int(item_dir) in subscribed_items` 过滤) |
+| 日常开发测试 | 通过 Godot 编辑器 F5 调试模式，自动从 `mods-unpacked/` 加载（**推荐日常使用**） |
+| ZIP 快速验证 | 替换已订阅 Workshop 目录内的 ZIP（如 `1942280/<数字ID>/mod.zip`）；**目录名必须是数字 ID**，因为 ModLoader 用 `int(目录名) in subscribed_items` 校验——`test/` 这类非数字目录名会被静默跳过 |
 | 游戏日志 | `~/.local/share/Brotato/logs/godot.log` |
 | AutoTato 配置文件 | `~/.local/share/Brotato/AutoTato/session_config.json` |
 

@@ -1,7 +1,7 @@
 # AutoTato ConfigPanel — UI 交互流程
 
 > 来源：AutoTato P5.1 代码 + vanilla 暂停菜单代码分析
-> 更新日期：2026-06-25
+> 更新日期：2026-06-28
 
 ---
 
@@ -282,4 +282,77 @@ _config_panel.show()
 | P5.3 | 阈值编辑器 Tab（thresholds 的 UI） |
 | P5.4 | 接通 Bridge.set_* 写回 + SaveButton 真实保存 |
 | P5.5 | i18n 双语支持（tr_key） |
-| P5.6 | 手柄导航完善 |
+| P6   | ✅ 手柄支持 — D-pad 焦点导航 + 肩键切 Tab + 焦点可视化 |
+
+---
+
+## P6 手柄支持（2026-06-28 实施）
+
+### 设计决策
+
+**不重用 vanilla FocusEmulator**。FocusEmulator（720 行）为 coop 多人设计，含
+多玩家焦点着色、`focus_base_data` 分区导航、PopupMenu 手柄控制等。配置面板
+是单人场景，不需要这些。改用 **Godot 3 内置焦点系统** + 轻量 `GamepadNavigator`。
+
+### 核心组件
+
+**GamepadNavigator**（`autotato/ui/gamepad_navigator.gd`）：
+- 继承 `Node`（非 Control），不参与布局系统
+- 显式 `set_process_input(true)` 接收 `_input`（Node 默认不接收）
+- 职责：肩键切 Tab + 焦点可视化（Theme StyleBox 覆盖）
+
+**焦点可视化策略**：
+一次覆盖 Theme 的所有控件类型 focus StyleBox，Godot 3 引擎在绘制时自动套用：
+```gdscript
+theme.set_stylebox("focus", "Button", focus_stylebox)
+theme.set_stylebox("focus", "CheckButton", focus_stylebox)
+theme.set_stylebox("focus", "OptionButton", focus_stylebox)
+theme.set_stylebox("focus", "LineEdit", focus_stylebox)
+```
+金色边框（`Color(1.0, 0.85, 0.2, 0.9)`）+ 微白底。
+
+### 控件焦点启用
+
+所有 UI tab 文件中显式 `focus_mode = Control.FOCUS_NONE` 删除 / 改为
+`FOCUS_ALL`。原始注释 "FOCUS_NONE 防止焦点窃取导致 hover 失效" 的担忧
+实际上不存在——创建控件时不调 `grab_focus()`，焦点只在用户输入（方向键/
+鼠标悬停）时转移。
+
+**范围限制**：Extension 覆盖层（`base_shop.gd`、`shop_item.gd`、
+`upgrades_ui_player_container.gd`）中的 `FOCUS_NONE` **保持不动**。这些是
+游戏内快捷按钮，与 vanilla FocusEmulator 共用场景树，改焦点会干扰
+游戏主 UI 的手柄导航。
+
+### 手柄按键映射
+
+| 手柄按键 | Godot action | 功能 |
+|---|---|---|
+| D-pad / 左摇杆 | `ui_up/down/left/right` | 控件间移动焦点 |
+| A (Xbox) / Cross (PS) | `ui_accept` | 触发当前控件 |
+| B (Xbox) / Circle (PS) | `ui_cancel` | 逐层退出（弹窗 → 面板 → 暂停菜单） |
+| LB / LT | `ltrigger` | 上一个 Tab |
+| RB / RT | `rtrigger` | 下一个 Tab |
+
+肩键选择 `ltrigger`/`rtrigger` 是为了与 vanilla `UIBetterTabContainer`
+的按键映射保持一致。
+
+### 弹窗焦点管理
+
+ItemsTab / WeaponsTab 卡片弹窗打开时：
+1. `call_deferred("_grab_popup_focus")` → 首个 OptionButton 获得焦点
+2. Cancel / Save 按钮设置 `focus_neighbour_left/right` 互为邻居
+3. 肩键被 `_is_any_popup_open()` 守卫拦截（弹窗存在时 Tab 被锁定）
+4. Godot 3 的 `Popup + popup_exclusive=true` 自动提供焦点围栏
+
+### 焦点邻居
+
+大部分布局无需手动设置——Godot 3 的空间焦点检测在 VBoxContainer/HBoxContainer/
+GridContainer 中自动计算最近邻居。仅弹窗的 Cancel↔Save（水平排列的两个孤立按钮）
+手动设置了 `focus_neighbour_left/right`。
+
+### 未变更的部分
+
+- **vanilla FocusEmulator** 完全不受影响（P6 不改任何 vanilla 文件）
+- **config_panel ESC 竞态修复** 不变（`call_deferred` 恢复 PauseMenu 输入
+  对手柄 B 按钮同样有效）
+- **InputService.using_gamepad** 未被使用——键盘用户也受益于焦点导航

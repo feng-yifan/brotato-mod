@@ -48,6 +48,7 @@ var _self_option: OptionButton = null
 var _set_rule_vbox: VBoxContainer = null
 var _min_tier_opt: OptionButton = null
 var _popup_title: Label = null
+var _popup_save_btn: Button = null
 
 
 func _ready() -> void:
@@ -89,6 +90,7 @@ func _build_ui() -> void:
 	scroll.name = "ScrollContainer"
 	scroll.size_flags_horizontal = SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	scroll.follow_focus = true
 	root.add_child(scroll)
 
 	var cm := MarginContainer.new()
@@ -222,23 +224,20 @@ func _build_set_block(set_data, chain_ids: Array, chains: Dictionary, self_rules
 	gap.rect_min_size = Vector2(0, 6)
 	_groups.add_child(gap)
 
-	var header_btn := Button.new()
-	header_btn.focus_mode = Control.FOCUS_NONE
-	header_btn.flat = true
-	header_btn.size_flags_horizontal = SIZE_EXPAND_FILL
-	header_btn.rect_min_size = Vector2(0, 28)
-
+	# 手柄: 用 HBoxContainer 做 header 行, 箭头独立 Button + category OptionButton
+	# 各自可聚焦, 避免之前 Button 包裹导致 OptionButton 无法接收焦点
 	var hi := HBoxContainer.new()
-	hi.anchor_right = 1.0
-	hi.anchor_bottom = 1.0
-	hi.mouse_filter = MOUSE_FILTER_IGNORE
+	hi.rect_min_size = Vector2(0, 28)
+	hi.size_flags_horizontal = SIZE_EXPAND_FILL
 	hi.alignment = BoxContainer.ALIGN_CENTER
+	hi.add_constant_override("separation", 4)
 
-	var arrow := Label.new()
-	arrow.text = "▼"
-	arrow.valign = Label.VALIGN_CENTER
-	arrow.rect_min_size = Vector2(20, 28)
-	hi.add_child(arrow)
+	var arrow_btn := Button.new()
+	arrow_btn.text = "▼"
+	arrow_btn.flat = true
+	arrow_btn.rect_min_size = Vector2(24, 28)
+	arrow_btn.focus_mode = Control.FOCUS_ALL
+	hi.add_child(arrow_btn)
 
 	var nl := Label.new()
 	nl.text = set_data.get("name")
@@ -256,8 +255,7 @@ func _build_set_block(set_data, chain_ids: Array, chains: Dictionary, self_rules
 	ro.connect("item_selected", self, "_on_set_rule_changed", [sid])
 	hi.add_child(ro)
 
-	header_btn.add_child(hi)
-	_groups.add_child(header_btn)
+	_groups.add_child(hi)
 
 	var grid := GridContainer.new()
 	grid.columns = GRID_COLUMNS
@@ -266,8 +264,12 @@ func _build_set_block(set_data, chain_ids: Array, chains: Dictionary, self_rules
 	grid.size_flags_horizontal = SIZE_EXPAND_FILL
 	_groups.add_child(grid)
 
-	_set_blocks[sid] = {"header": header_btn, "grid": grid, "arrow": arrow, "rule_opt": ro}
-	header_btn.connect("pressed", self, "_on_set_header_toggled", [sid])
+	_set_blocks[sid] = {"header": arrow_btn, "grid": grid, "arrow": arrow_btn, "rule_opt": ro}
+	arrow_btn.connect("pressed", self, "_on_set_header_toggled", [sid])
+
+	# 手柄: 箭头按钮 ↔ 类别下拉左右切换
+	arrow_btn.focus_neighbour_right = arrow_btn.get_path_to(ro)
+	ro.focus_neighbour_left = ro.get_path_to(arrow_btn)
 
 	for cid in chain_ids:
 		_build_card(grid, cid, chains[cid], self_rules, set_rules)
@@ -292,7 +294,7 @@ func _build_card(grid: GridContainer, cid: String, weapon_data, self_rules: Dict
 	var btn := Button.new()
 	btn.size_flags_horizontal = SIZE_EXPAND_FILL
 	btn.rect_min_size = Vector2(85, CARD_MIN_HEIGHT)
-	btn.focus_mode = Control.FOCUS_NONE
+	btn.focus_mode = Control.FOCUS_ALL
 
 	# 边框 stylebox
 	var sb := StyleBoxFlat.new()
@@ -480,6 +482,15 @@ func _on_card_pressed(cid: String) -> void:
 
 	_popup.popup_centered_ratio(1.0)
 	_disable_config_input()
+	# 弹窗打开后将焦点移到第一个控件, 让手柄可以开始导航
+	call_deferred("_grab_popup_focus")
+
+
+func _grab_popup_focus() -> void:
+	if _self_option and _self_option.visible:
+		_self_option.grab_focus()
+	elif _popup_save_btn and _popup_save_btn.visible:
+		_popup_save_btn.grab_focus()
 
 
 func _build_set_rule_controls(set_rules: Dictionary) -> void:
@@ -579,7 +590,7 @@ func _ensure_popup() -> void:
 
 	_self_option = OptionButton.new()
 	_self_option.size_flags_horizontal = SIZE_EXPAND_FILL
-	_self_option.focus_mode = Control.FOCUS_NONE
+	_self_option.focus_mode = Control.FOCUS_ALL
 	for pair in WEAPON_SELF_OPTIONS:
 		_self_option.add_item(tr(pair[1]))
 	self_row.add_child(_self_option)
@@ -598,16 +609,26 @@ func _ensure_popup() -> void:
 
 	var bh := HBoxContainer.new()
 	bh.alignment = BoxContainer.ALIGN_END
-	var cb := Button.new()
-	cb.text = tr("AUTOTATO_CANCEL")
-	cb.focus_mode = Control.FOCUS_NONE
-	cb.connect("pressed", self, "_on_popup_cancel")
-	bh.add_child(cb)
+	# 保存在前, 取消在后: 从上方下移时空间导航默认命中保存
 	var sb := Button.new()
 	sb.text = tr("AUTOTATO_SAVE")
-	sb.focus_mode = Control.FOCUS_NONE
+	sb.focus_mode = Control.FOCUS_ALL
 	sb.connect("pressed", self, "_on_popup_save")
 	bh.add_child(sb)
+	var cb := Button.new()
+	cb.text = tr("AUTOTATO_CANCEL")
+	cb.focus_mode = Control.FOCUS_ALL
+	cb.connect("pressed", self, "_on_popup_cancel")
+	bh.add_child(cb)
+	_popup_save_btn = sb
+
+	# 手柄导航: Save ↔ Cancel 水平邻居
+	sb.focus_neighbour_right = sb.get_path_to(cb)
+	cb.focus_neighbour_left = cb.get_path_to(sb)
+
+	# 手柄: 从上方 _self_option 下移至按钮行时默认到保存
+	_self_option.focus_neighbour_bottom = _self_option.get_path_to(sb)
+
 	cv.add_child(bh)
 
 
@@ -637,6 +658,14 @@ func _on_popup_save() -> void:
 	_popup.hide()
 	_enable_config_input()
 	_refresh()
+	# 手柄: 保存后 refresh 销毁焦点, 延迟恢复到刚编辑的卡片上
+	call_deferred("_grab_focus_on_card", _editing_chain_id)
+
+
+func _grab_focus_on_card(cid: String) -> void:
+	var ref = _card_refs.get(cid)
+	if ref and ref["button"]:
+		ref["button"].grab_focus()
 
 
 func _on_popup_cancel() -> void:
@@ -646,9 +675,23 @@ func _on_popup_cancel() -> void:
 
 func _input(event: InputEvent) -> void:
 	if _popup and _popup.visible and event.is_action_released("ui_cancel"):
+		# 如果 OptionButton 下拉菜单正在显示, 不关闭弹窗
+		if _has_visible_popup_menu_in(_popup):
+			return
 		_popup.hide()
 		_enable_config_input()
 		get_tree().set_input_as_handled()
+
+
+func _has_visible_popup_menu_in(node: Node) -> bool:
+	for child in node.get_children():
+		if child is PopupMenu:
+			var pm: PopupMenu = child as PopupMenu
+			if pm.visible:
+				return true
+		if _has_visible_popup_menu_in(child):
+			return true
+	return false
 
 
 # ============================================================================

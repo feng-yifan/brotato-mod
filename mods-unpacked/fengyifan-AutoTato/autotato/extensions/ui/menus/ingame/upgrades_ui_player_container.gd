@@ -62,6 +62,7 @@ var _at_set_vbox: VBoxContainer = null
 var _at_item_vbox: VBoxContainer = null
 var _at_weapon_vbox: VBoxContainer = null
 var _at_popup_title: Label = null
+var _at_save_btn: Button = null
 var _at_is_weapon := false
 var _at_corner_font = null
 var _at_btn_font = null
@@ -123,39 +124,82 @@ func _at_setup_buttons() -> void:
 		return
 	_at_btn_font = _take_button.get_font("font")
 
-	# 两个按钮水平排列, 避免在纵向按钮行里再多占两行
-	var pair := HBoxContainer.new()
-	pair.add_constant_override("separation", 8)
-
+	# 两个按钮纵向排列: 物品规则在上, AutoTato 在下
 	var rule_btn := Button.new()
 	rule_btn.name = "ATRuleButton"
 	rule_btn.text = tr("AUTOTATO_ITEM_RULE")
 	rule_btn.align = Button.ALIGN_CENTER
-	rule_btn.focus_mode = Control.FOCUS_NONE
+	rule_btn.focus_mode = Control.FOCUS_ALL
 	if _at_btn_font:
 		rule_btn.add_font_override("font", _at_btn_font)
 	rule_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rule_btn.connect("pressed", self, "_at_rule_pressed")
-	pair.add_child(rule_btn)
+	# X 键图标 — 使用 vanilla InputIcon 脚本, 与 LockButton 的
+	# AdditionalIcon 风格一致 (51px 最小宽度, 设备切换时自动更新).
+	# 右侧锚定, 不干扰 Button 内置文字.
+	var icon_script = load("res://ui/hud/ui_input_icon.gd")
+	if icon_script:
+		var xicon := TextureRect.new()
+		xicon.set_script(icon_script)
+		xicon.input_string = "ui_select"
+		xicon.player_index = 0
+		xicon.rect_min_size = Vector2(51, 0)
+		xicon.anchor_left = 1.0
+		xicon.anchor_right = 1.0
+		xicon.anchor_bottom = 1.0
+		xicon.margin_left = -55
+		xicon.margin_right = -4
+		xicon.margin_bottom = 0
+		xicon.expand = true
+		xicon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		xicon.mouse_filter = MOUSE_FILTER_IGNORE
+		rule_btn.add_child(xicon)
+	btn_row.add_child(rule_btn)
 
 	var auto_btn := Button.new()
 	auto_btn.name = "ATAutoButton"
 	auto_btn.text = tr("AUTOTATO_AUTOMATION")
 	auto_btn.align = Button.ALIGN_CENTER
-	auto_btn.focus_mode = Control.FOCUS_NONE
+	auto_btn.focus_mode = Control.FOCUS_ALL
 	if _at_btn_font:
 		auto_btn.add_font_override("font", _at_btn_font)
 	auto_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	auto_btn.connect("pressed", self, "_at_auto_pressed")
-	pair.add_child(auto_btn)
-
-	btn_row.add_child(pair)
+	btn_row.add_child(auto_btn)
 
 
 # vanilla 在展示箱子物品时调用 show_item, 此时 _item_data 已赋值, 刷新角标
 func show_item(item_data) -> void:
 	.show_item(item_data)
 	_at_update_corner_label()
+	# 手柄: 默认焦点从拿去按钮改为 AutoTato 按钮
+	call_deferred("_at_grab_default_focus")
+
+
+func _at_grab_default_focus() -> void:
+	var auto_btn = find_node("ATAutoButton", true, false)
+	if auto_btn and auto_btn.visible:
+		auto_btn.grab_focus()
+
+
+# 重写 vanilla focus(): 箱子物品/升级选择时默认焦点设为 AutoTato 按钮.
+# vanilla 在 _show_next_player_options() 中 show_* 之后调用 focus(), 其 deferred 调用
+# 会在我们的 show_item / show_upgrades_for_level 钩子之后执行, 覆盖我们的焦点设置.
+# 此重写确保:
+# - 箱子物品: 焦点落在 ATAutoButton (有多个箱子时每个箱子都会走此路径)
+# - 升级 4 选 1: 焦点落在 ATAutoUpgradeButton (在刷新按钮下方)
+func focus() -> void:
+	if _items_container.visible:
+		var auto_btn = find_node("ATAutoButton", true, false)
+		if auto_btn and auto_btn.visible:
+			auto_btn.call_deferred("grab_focus")
+			return
+	elif _upgrades_container.visible:
+		var auto_btn = find_node("ATAutoUpgradeButton", true, false)
+		if auto_btn and auto_btn.visible:
+			auto_btn.call_deferred("grab_focus")
+			return
+	.focus()
 
 
 func _at_update_corner_label() -> void:
@@ -194,9 +238,9 @@ func _at_update_corner_label() -> void:
 		var rule = bridge.get_item_rule(_item_data.my_id)
 		var sa: String = String(rule.get("shop_action", "manual"))
 		var ca: String = String(rule.get("chest_action", "manual"))
-		_at_corner_shop.text = tr("AUTOTATO_CORNER_SHOP") + _at_shop_action_text(sa)
+		_at_corner_shop.text = _at_shop_action_text(sa)
 		_at_corner_shop.modulate = _at_shop_action_color(sa)
-		_at_corner_chest.text = tr("AUTOTATO_CORNER_CHEST") + _at_chest_action_text(ca)
+		_at_corner_chest.text = _at_chest_action_text(ca)
 		_at_corner_chest.modulate = _at_chest_action_color(ca)
 
 
@@ -263,11 +307,15 @@ func _at_auto_pressed() -> void:
 	if result == null:
 		return
 	var state: String = String(result.terminal_state)
-	_log("箱子 AutoTato 触发 玩家=%d 物品=%s 终态=%s 原因=%s" % [player_index, String(result.item_id), _STATE_CN.get(state, state), result.reason])
+	_log("箱子 AutoTato 触发 玩家=%d 物品=%s 终态=%s" % [player_index, String(result.item_id), _STATE_CN.get(state, state)])
 	_autotato_clear_button_guard()
 	match state:
-		"purchased": _take_button.call_deferred("emit_signal", "pressed")
-		"skipped": _discard_button.call_deferred("emit_signal", "pressed")
+		"purchased":
+			if _take_button and is_instance_valid(_take_button):
+				_take_button.emit_signal("pressed")
+		"skipped":
+			if _discard_button and is_instance_valid(_discard_button):
+				_discard_button.emit_signal("pressed")
 		_: pass
 
 
@@ -301,6 +349,17 @@ func _at_rule_pressed() -> void:
 		_at_item_vbox.show()
 
 	_at_popup.popup_centered_ratio(1.0)
+	# 手柄: 弹窗打开后给初始焦点
+	call_deferred("_at_grab_popup_focus")
+
+
+func _at_grab_popup_focus() -> void:
+	if _at_is_weapon:
+		if _at_self_opt and _at_self_opt.visible:
+			_at_self_opt.grab_focus()
+	else:
+		if _at_shop_opt and _at_shop_opt.visible:
+			_at_shop_opt.grab_focus()
 
 
 func _at_build_set_rows(set_rules: Dictionary) -> void:
@@ -327,7 +386,7 @@ func _at_build_set_rows(set_rules: Dictionary) -> void:
 		opt.rect_min_size.x = 70
 		opt.add_item(tr("AUTOTATO_ACTION_MANUAL"))
 		opt.add_item(tr("AUTOTATO_ACTION_SKIP"))
-		opt.focus_mode = Control.FOCUS_NONE
+		opt.focus_mode = Control.FOCUS_ALL
 		var cr: String = set_rules.get(sid, "manual")
 		opt.select(1 if cr == "skip" else 0)
 		row.add_child(opt)
@@ -367,7 +426,7 @@ func _at_ensure_popup() -> void:
 	_at_popup.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.rect_min_size = Vector2(360, 0)
+	panel.size_flags_horizontal = SIZE_FILL
 	panel.mouse_filter = MOUSE_FILTER_STOP
 	center.add_child(panel)
 
@@ -411,7 +470,7 @@ func _at_ensure_popup() -> void:
 
 	_at_shop_opt = OptionButton.new()
 	_at_shop_opt.size_flags_horizontal = SIZE_EXPAND_FILL
-	_at_shop_opt.focus_mode = Control.FOCUS_NONE
+	_at_shop_opt.focus_mode = Control.FOCUS_ALL
 	for pair in SHOP_ACTIONS:
 		_at_shop_opt.add_item(tr(pair[1]))
 	actions_grid.add_child(_at_shop_opt)
@@ -424,7 +483,7 @@ func _at_ensure_popup() -> void:
 
 	_at_chest_opt = OptionButton.new()
 	_at_chest_opt.size_flags_horizontal = SIZE_EXPAND_FILL
-	_at_chest_opt.focus_mode = Control.FOCUS_NONE
+	_at_chest_opt.focus_mode = Control.FOCUS_ALL
 	for pair in CHEST_ACTIONS:
 		_at_chest_opt.add_item(tr(pair[1]))
 	actions_grid.add_child(_at_chest_opt)
@@ -441,7 +500,7 @@ func _at_ensure_popup() -> void:
 	self_row.add_child(_at_label("武器自身规则"))
 	_at_self_opt = OptionButton.new()
 	_at_self_opt.size_flags_horizontal = SIZE_EXPAND_FILL
-	_at_self_opt.focus_mode = Control.FOCUS_NONE
+	_at_self_opt.focus_mode = Control.FOCUS_ALL
 	for pair in WEAPON_SELF_OPTIONS:
 		_at_self_opt.add_item(tr(pair[1]))
 	self_row.add_child(_at_self_opt)
@@ -463,17 +522,27 @@ func _at_ensure_popup() -> void:
 	var btn_hbox := HBoxContainer.new()
 	btn_hbox.alignment = BoxContainer.ALIGN_END
 
-	var cancel_btn := Button.new()
-	cancel_btn.text = tr("AUTOTATO_CANCEL")
-	cancel_btn.focus_mode = Control.FOCUS_NONE
-	cancel_btn.connect("pressed", self, "_at_popup_cancel")
-	btn_hbox.add_child(cancel_btn)
-
+	# 保存在前, 取消在后: 从上方下移时空间导航默认命中保存
 	var save_btn := Button.new()
 	save_btn.text = tr("AUTOTATO_SAVE")
-	save_btn.focus_mode = Control.FOCUS_NONE
+	save_btn.focus_mode = Control.FOCUS_ALL
 	save_btn.connect("pressed", self, "_at_popup_save")
 	btn_hbox.add_child(save_btn)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text = tr("AUTOTATO_CANCEL")
+	cancel_btn.focus_mode = Control.FOCUS_ALL
+	cancel_btn.connect("pressed", self, "_at_popup_cancel")
+	btn_hbox.add_child(cancel_btn)
+	_at_save_btn = save_btn
+
+	# 手柄导航: Save ↔ Cancel 水平邻居
+	save_btn.focus_neighbour_right = save_btn.get_path_to(cancel_btn)
+	cancel_btn.focus_neighbour_left = cancel_btn.get_path_to(save_btn)
+
+	# 手柄: 从最后一个下拉向下 → 保存按钮
+	_at_chest_opt.focus_neighbour_bottom = _at_chest_opt.get_path_to(save_btn)
+	_at_self_opt.focus_neighbour_bottom = _at_self_opt.get_path_to(save_btn)
 
 	content.add_child(btn_hbox)
 
@@ -530,10 +599,53 @@ func _input(event: InputEvent) -> void:
 	# 弹窗打开时只处理 ESC 关闭, 跳过 vanilla 的 ui_info 丢弃 / ban 输入, 避免背后误触
 	if _at_popup and _at_popup.visible:
 		if event.is_action_released("ui_cancel"):
+			# 如果 OptionButton 下拉菜单正在显示, 不关闭弹窗
+			if _at_has_visible_popup_menu():
+				return
 			_at_popup.hide()
 			get_tree().set_input_as_handled()
 		return
+
+	# 卡片有焦点时的快捷键
+	if _at_card_has_focus():
+		if event.is_action_pressed("ui_select"):
+			# X 键: 打开物品/武器规则弹窗
+			_at_rule_pressed()
+			get_tree().set_input_as_handled()
+		elif event.is_action_pressed("ui_ban"):
+			# B 键: 透传给 ban 按钮
+			if _ban_button and _ban_button.visible and not _ban_button.disabled:
+				_ban_button.emit_signal("pressed")
+			get_tree().set_input_as_handled()
+
 	._input(event)
+
+
+func _at_card_has_focus() -> bool:
+	var fo: Control = get_focus_owner() as Control
+	if fo == null:
+		return false
+	var node: Node = fo
+	while node:
+		if node == self:
+			return true
+		node = node.get_parent()
+	return false
+
+
+func _at_has_visible_popup_menu() -> bool:
+	return _at_find_visible_popup_menu(_at_popup)
+
+
+func _at_find_visible_popup_menu(node: Node) -> bool:
+	for child in node.get_children():
+		if child is PopupMenu:
+			var pm: PopupMenu = child as PopupMenu
+			if pm.visible:
+				return true
+		if _at_find_visible_popup_menu(child):
+			return true
+	return false
 
 
 # ----------------------------------------------------------------------------

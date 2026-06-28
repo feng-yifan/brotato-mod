@@ -60,6 +60,7 @@ var _at_corner_vbox: VBoxContainer = null
 var _at_corner_shop: Label = null
 var _at_corner_chest: Label = null
 var _at_popup_title: Label = null
+var _at_save_btn: Button = null
 
 
 func _ready() -> void:
@@ -85,7 +86,7 @@ func _ready() -> void:
 		btn.name = "AutoTatoRuleButton"
 		btn.text = tr("AUTOTATO_ITEM_RULE")
 		btn.align = Button.ALIGN_CENTER
-		btn.focus_mode = Control.FOCUS_NONE
+		btn.focus_mode = Control.FOCUS_ALL
 		if _at_rule_font:
 			btn.add_font_override("font", _at_rule_font)
 		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -95,6 +96,26 @@ func _ready() -> void:
 		btn_parent.add_child(btn)
 		btn_parent.move_child(btn, ban_idx)
 		btn.connect("pressed", self, "_at_rule_pressed")
+		# B 键图标 — 使用 vanilla InputIcon 脚本, 与 LockButton/BanButton 的
+		# AdditionalIcon 风格一致 (51px 最小宽度, 设备切换时自动更新).
+		# 右侧锚定, 不干扰 Button 内置文字.
+		var icon_script = load("res://ui/hud/ui_input_icon.gd")
+		if icon_script:
+			var bicon := TextureRect.new()
+			bicon.set_script(icon_script)
+			bicon.input_string = "ui_coop_ban"
+			bicon.player_index = 0
+			bicon.rect_min_size = Vector2(51, 0)
+			bicon.anchor_left = 1.0
+			bicon.anchor_right = 1.0
+			bicon.anchor_bottom = 1.0
+			bicon.margin_left = -55
+			bicon.margin_right = -4
+			bicon.margin_bottom = 0
+			bicon.expand = true
+			bicon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			bicon.mouse_filter = MOUSE_FILTER_IGNORE
+			btn.add_child(bicon)
 
 	# 2. LockButton 恢复原始 size_flags (EXPAND+SHRINK_CENTER=7), 不强制宽度
 	#    (之前强制 220 比原始窄; 宽度交给布局, 规则按钮延迟同步到它的实际宽度)
@@ -195,9 +216,9 @@ func _at_update_corner_label() -> void:
 		var rule = bridge.get_item_rule(item_data.my_id)
 		var sa: String = String(rule.get("shop_action", "manual"))
 		var ca: String = String(rule.get("chest_action", "manual"))
-		_at_corner_shop.text = tr("AUTOTATO_CORNER_SHOP") + _at_shop_action_text(sa)
+		_at_corner_shop.text = _at_shop_action_text(sa)
 		_at_corner_shop.modulate = _at_shop_action_color(sa)
-		_at_corner_chest.text = tr("AUTOTATO_CORNER_CHEST") + _at_chest_action_text(ca)
+		_at_corner_chest.text = _at_chest_action_text(ca)
 		_at_corner_chest.modulate = _at_chest_action_color(ca)
 
 
@@ -306,6 +327,17 @@ func _at_rule_pressed() -> void:
 		_at_item_vbox.show()
 
 	_at_popup.popup_centered_ratio(1.0)
+	# 手柄: 弹窗打开后给初始焦点
+	call_deferred("_at_grab_popup_focus")
+
+
+func _at_grab_popup_focus() -> void:
+	if _at_is_weapon:
+		if _at_self_opt and _at_self_opt.visible:
+			_at_self_opt.grab_focus()
+	else:
+		if _at_shop_opt and _at_shop_opt.visible:
+			_at_shop_opt.grab_focus()
 
 
 func _at_build_set_rows(set_rules: Dictionary) -> void:
@@ -334,7 +366,7 @@ func _at_build_set_rows(set_rules: Dictionary) -> void:
 		opt.rect_min_size.x = 70
 		opt.add_item(tr("AUTOTATO_ACTION_MANUAL"))
 		opt.add_item(tr("AUTOTATO_ACTION_SKIP"))
-		opt.focus_mode = Control.FOCUS_NONE
+		opt.focus_mode = Control.FOCUS_ALL
 		var cr: String = set_rules.get(sid, "manual")
 		opt.select(1 if cr == "skip" else 0)
 		row.add_child(opt)
@@ -381,7 +413,7 @@ func _at_ensure_popup() -> void:
 	_at_popup.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.rect_min_size = Vector2(360, 0)
+	panel.size_flags_horizontal = SIZE_FILL
 	panel.mouse_filter = MOUSE_FILTER_STOP
 	center.add_child(panel)
 
@@ -426,7 +458,7 @@ func _at_ensure_popup() -> void:
 
 	_at_shop_opt = OptionButton.new()
 	_at_shop_opt.size_flags_horizontal = SIZE_EXPAND_FILL
-	_at_shop_opt.focus_mode = Control.FOCUS_NONE
+	_at_shop_opt.focus_mode = Control.FOCUS_ALL
 	for pair in SHOP_ACTIONS:
 		_at_shop_opt.add_item(tr(pair[1]))
 	actions_grid.add_child(_at_shop_opt)
@@ -439,7 +471,7 @@ func _at_ensure_popup() -> void:
 
 	_at_chest_opt = OptionButton.new()
 	_at_chest_opt.size_flags_horizontal = SIZE_EXPAND_FILL
-	_at_chest_opt.focus_mode = Control.FOCUS_NONE
+	_at_chest_opt.focus_mode = Control.FOCUS_ALL
 	for pair in CHEST_ACTIONS:
 		_at_chest_opt.add_item(tr(pair[1]))
 	actions_grid.add_child(_at_chest_opt)
@@ -457,7 +489,7 @@ func _at_ensure_popup() -> void:
 	self_row.add_child(_at_label("武器自身规则"))
 	_at_self_opt = OptionButton.new()
 	_at_self_opt.size_flags_horizontal = SIZE_EXPAND_FILL
-	_at_self_opt.focus_mode = Control.FOCUS_NONE
+	_at_self_opt.focus_mode = Control.FOCUS_ALL
 	for pair in WEAPON_SELF_OPTIONS:
 		_at_self_opt.add_item(tr(pair[1]))
 	self_row.add_child(_at_self_opt)
@@ -481,17 +513,27 @@ func _at_ensure_popup() -> void:
 	var btn_hbox := HBoxContainer.new()
 	btn_hbox.alignment = BoxContainer.ALIGN_END
 
-	var cancel_btn := Button.new()
-	cancel_btn.text = tr("AUTOTATO_CANCEL")
-	cancel_btn.focus_mode = Control.FOCUS_NONE
-	cancel_btn.connect("pressed", self, "_at_popup_cancel")
-	btn_hbox.add_child(cancel_btn)
-
+	# 保存在前, 取消在后: 从上方下移时空间导航默认命中保存
 	var save_btn := Button.new()
 	save_btn.text = tr("AUTOTATO_SAVE")
-	save_btn.focus_mode = Control.FOCUS_NONE
+	save_btn.focus_mode = Control.FOCUS_ALL
 	save_btn.connect("pressed", self, "_at_popup_save")
 	btn_hbox.add_child(save_btn)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text = tr("AUTOTATO_CANCEL")
+	cancel_btn.focus_mode = Control.FOCUS_ALL
+	cancel_btn.connect("pressed", self, "_at_popup_cancel")
+	btn_hbox.add_child(cancel_btn)
+	_at_save_btn = save_btn
+
+	# 手柄导航: Save ↔ Cancel 水平邻居
+	save_btn.focus_neighbour_right = save_btn.get_path_to(cancel_btn)
+	cancel_btn.focus_neighbour_left = cancel_btn.get_path_to(save_btn)
+
+	# 手柄: 从最后一个下拉向下 → 保存按钮
+	_at_chest_opt.focus_neighbour_bottom = _at_chest_opt.get_path_to(save_btn)
+	_at_self_opt.focus_neighbour_bottom = _at_self_opt.get_path_to(save_btn)
 
 	content.add_child(btn_hbox)
 
@@ -545,9 +587,65 @@ func _at_popup_cancel() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if _at_popup and _at_popup.visible and event.is_action_released("ui_cancel"):
-		_at_popup.hide()
-		get_tree().set_input_as_handled()
+	# 弹窗打开时: ESC 关闭弹窗 (PopupMenu 守卫)
+	if _at_popup and _at_popup.visible:
+		if event.is_action_released("ui_cancel"):
+			if _at_has_visible_popup_menu():
+				return
+			_at_popup.hide()
+			get_tree().set_input_as_handled()
+		return
+
+	# 卡片有焦点时的快捷键
+	if _at_card_has_focus():
+		if event.is_action_released("ui_cancel"):
+			# B 键: 打开物品/武器规则弹窗
+			_at_rule_pressed()
+			get_tree().set_input_as_handled()
+		elif event.is_action_pressed("ui_ban"):
+			# X 键: 透传给锁定按钮
+			_at_trigger_lock()
+			get_tree().set_input_as_handled()
+	# 非快捷键事件不消费, 让 FocusEmulator/vanilla _input 正常处理
+
+
+func _at_card_has_focus() -> bool:
+	var fo: Control = get_focus_owner() as Control
+	if fo == null:
+		return false
+	# 焦点控件是否在本卡片子树内
+	var node: Node = fo
+	while node:
+		if node == self:
+			return true
+		node = node.get_parent()
+	return false
+
+
+func _at_trigger_lock() -> void:
+	# 透传 X 键: 在焦点落在规则按钮时触发物品锁定
+	if item_data == null or not active:
+		return
+	if not item_data.is_lockable:
+		return
+	var lock_btn = get_node_or_null("%LockButton")
+	if lock_btn and lock_btn.visible and not lock_btn.disabled:
+		lock_btn.emit_signal("pressed")
+
+
+func _at_has_visible_popup_menu() -> bool:
+	return _at_find_visible_popup_menu(_at_popup)
+
+
+func _at_find_visible_popup_menu(node: Node) -> bool:
+	for child in node.get_children():
+		if child is PopupMenu:
+			var pm: PopupMenu = child as PopupMenu
+			if pm.visible:
+				return true
+		if _at_find_visible_popup_menu(child):
+			return true
+	return false
 
 
 # ============================================================================

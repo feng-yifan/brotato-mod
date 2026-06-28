@@ -36,6 +36,14 @@ const _CHEST_STATE_CN := {
 
 
 func _show_next_player_options() -> bool:
+	# 先确保 AutoTato 按钮存在, 再调 vanilla.
+	# vanilla 的 ._show_next_player_options() 内部调用了 player_container.focus(),
+	# 如果按钮还没创建, focus() 重写找不到 ATAutoUpgradeButton 会回退到 vanilla 行为.
+	var player_count = RunData.get_player_count()
+	for player_index in player_count:
+		var pc = _get_player_container(player_index)
+		if pc:
+			_at_ensure_upgrade_auto_button(pc, player_index)
 	var ret = ._show_next_player_options()
 	if ret:
 		_autotato_process_upgrades()
@@ -327,16 +335,51 @@ func _at_ensure_upgrade_auto_button(pc, player_index: int) -> void:
 	var reroll_btn = pc.get("_reroll_button")
 	if reroll_btn == null:
 		return
-	var parent = reroll_btn.get_parent()
-	if parent == null:
+	# HBoxContainer2 (reroll 按钮所在行, 水平排列)
+	var reroll_row = reroll_btn.get_parent()
+	if reroll_row == null:
 		return
+	# UpgradesContainer (VBoxContainer, 包含升级 UI 行 + HBoxContainer2)
+	var upgrades_container = reroll_row.get_parent()
+	if upgrades_container == null:
+		return
+	# 按钮放在 HBoxContainer2 行之后 (刷新按钮下方), 独立一行.
+	# 用 HBoxContainer 镜像 HBoxContainer2 的布局: 左右 expanding spacer + 中间 500px 按钮,
+	# 确保 AutoTato 按钮与刷新按钮同宽居中.
+	var row_idx: int = reroll_row.get_index()
+
+	var wrapper := HBoxContainer.new()
+	var spacer_left := Control.new()
+	spacer_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrapper.add_child(spacer_left)
+
 	var btn := Button.new()
 	btn.name = "ATAutoUpgradeButton"
 	btn.text = tr("AUTOTATO_AUTOMATION")
-	btn.focus_mode = Control.FOCUS_NONE
+	btn.focus_mode = Control.FOCUS_ALL
+	btn.align = Button.ALIGN_CENTER
+	btn.rect_min_size = Vector2(500, 0)
 	btn.set_meta("player_index", player_index)
 	btn.connect("pressed", self, "_at_upgrade_auto_pressed", [btn])
-	parent.add_child(btn)
+	# 复制 reroll 按钮字体
+	var reroll_font = reroll_btn.get_font("font")
+	if reroll_font:
+		btn.add_font_override("font", reroll_font)
+	wrapper.add_child(btn)
+
+	var spacer_right := Control.new()
+	spacer_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrapper.add_child(spacer_right)
+
+	upgrades_container.add_child(wrapper)
+	upgrades_container.move_child(wrapper, row_idx + 1)
+
+	# 手柄焦点邻居: RerollButton ↔ ATAutoUpgradeButton
+	# vanilla ChooseButtons 已有 focus_neighbour_bottom → RerollButton,
+	# 但 RerollButton 没有 bottom 邻居. ATAutoUpgradeButton 在独立 wrapper 中,
+	# Godot 3 跨容器空间检测不可靠, 必须显式建立双向邻居.
+	reroll_btn.focus_neighbour_bottom = reroll_btn.get_path_to(btn)
+	btn.focus_neighbour_top = btn.get_path_to(reroll_btn)
 
 
 func _at_upgrade_auto_pressed(btn: Button) -> void:

@@ -78,7 +78,7 @@ func _autotato_add_continue_button() -> void:
 	var btn := Button.new()
 	btn.name = "AutoTatoContinueBtn"
 	btn.text = tr("AUTOTATO_AUTOMATION")
-	btn.focus_mode = Control.FOCUS_NONE
+	btn.focus_mode = Control.FOCUS_ALL
 	btn.rect_min_size = Vector2(110, 40)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER

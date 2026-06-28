@@ -92,8 +92,10 @@ const PATH_ITEMS_TAB_GD       := "res://mods-unpacked/fengyifan-AutoTato/autotat
 const PATH_THRESHOLDS_TAB_GD  := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/thresholds_tab.gd"
 const PATH_WEAPONS_TAB_GD      := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/weapons_tab.gd"
 const PATH_UPGRADE_TAB_GD      := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/upgrade_tab.gd"
+const PATH_GAMEPAD_NAV_GD      := "res://mods-unpacked/fengyifan-AutoTato/autotato/ui/gamepad_navigator.gd"
 const PATH_P5_1_SMOKE_TEST       := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p5_1_smoke_test.gd"
 const PATH_P2_V7_SMOKE_TEST      := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p2_v6_smoke_test.gd"
+const PATH_P6_SMOKE_TEST         := "res://mods-unpacked/fengyifan-AutoTato/autotato/dev/p6_smoke_test.gd"
 
 # preload 一遍所有文件，强制 Godot 在 mod 加载阶段解析它们
 # 写错路径或语法错误会在这里直接报错，不会拖到运行期
@@ -117,6 +119,7 @@ const _PRELOAD_ITEMS_TAB_GD     := preload("res://mods-unpacked/fengyifan-AutoTa
 const _PRELOAD_THRESHOLDS_TAB_GD := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/thresholds_tab.gd")
 const _PRELOAD_WEAPONS_TAB_GD    := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/weapons_tab.gd")
 const _PRELOAD_UPGRADE_TAB_GD    := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/tabs/upgrade_tab.gd")
+const _PRELOAD_GAMEPAD_NAV_GD  := preload("res://mods-unpacked/fengyifan-AutoTato/autotato/ui/gamepad_navigator.gd")
 
 # ----------------------------------------------------------------------------
 # 烟雾测试开关（开发期自检用，默认全部关闭）
@@ -136,6 +139,7 @@ const DEV_RUN_P3_5_SMOKE := false
 const DEV_RUN_P4_SMOKE := false
 const DEV_RUN_P5_1_SMOKE := false
 const DEV_RUN_P2_V7_SMOKE := false
+const DEV_RUN_P6_SMOKE := false
 
 # 各子目录路径在 _init() 里组装，避免每个 install 调用都重复写一遍前缀
 var mod_dir_path := ""
@@ -185,6 +189,7 @@ func _ready() -> void:
 	var run_p4 := DEV_RUN_P4_SMOKE or OS.has_environment("AUTOTATO_P4_SMOKE")
 	var run_p5_1 := DEV_RUN_P5_1_SMOKE or OS.has_environment("AUTOTATO_P5_1_SMOKE")
 	var run_p2_v6 := DEV_RUN_P2_V7_SMOKE or OS.has_environment("AUTOTATO_P2_V6_SMOKE")
+	var run_p6 := DEV_RUN_P6_SMOKE or OS.has_environment("AUTOTATO_P6_SMOKE")
 
 	if run_p0:
 		call_deferred("_run_smoke_test", PATH_P0_SMOKE_TEST, "P0")
@@ -202,6 +207,8 @@ func _ready() -> void:
 		call_deferred("_run_smoke_test", PATH_P5_1_SMOKE_TEST, "P5.1")
 	if run_p2_v6:
 		call_deferred("_run_smoke_test", PATH_P2_V7_SMOKE_TEST, "P2v6")
+	if run_p6:
+		call_deferred("_run_smoke_test", PATH_P6_SMOKE_TEST, "P6")
 
 		
 
@@ -253,241 +260,20 @@ func install_script_extensions() -> void:
 # ----------------------------------------------------------------------------
 
 # P5.5: 注册中英双语翻译.
-# translations/autotato.csv 是翻译源文件，可在 Godot 编辑器中导入生成 .translation 二进制文件.
-# 这里用 GDScript 字典直接注册翻译，确保 mod 不依赖编辑器导入也能完整显示.
+# 扫描 translations/ 目录加载所有 .translation 二进制文件.
+# autotato.csv 是翻译源文件, Godot 编辑器导入后生成 .translation.
+# CSV 是唯一数据源, 无需 GDScript 字典 fallback.
 func add_translations() -> void:
 	translations_dir_path = mod_dir_path.plus_file("translations")
-
-	# 优先尝试加载 Godot 编辑器导入的 .translation 文件（如果存在）
-	var en_path = translations_dir_path.plus_file("autotato.en.translation")
-	var zh_path = translations_dir_path.plus_file("autotato.zh.translation")
 	var dir = Directory.new()
-	var has_imported := false
-	if dir.file_exists(en_path):
-		ModLoaderMod.add_translation(en_path)
-		has_imported = true
-	if dir.file_exists(zh_path):
-		ModLoaderMod.add_translation(zh_path)
-		has_imported = true
-
-	if has_imported:
-		ModLoaderLog.info("AutoTato 已加载导入的 .translation 文件", LOG_NAME)
-
-	# 始终注册 GDScript 翻译（作为导入文件的补充或 fallback）
-	# 如果导入文件存在，GDScript 注册会填充缺失的 key；如果不存在，GDScript 是完整的备用方案
-	_register_gdscript_translations()
-
-
-# 用 GDScript 字典注册中英双语翻译.
-# 以 translations/autotato.csv 为唯一数据源，包含所有 88 个翻译 key.
-func _register_gdscript_translations() -> void:
-	var en_dict := _get_en_translations()
-	var zh_dict := _get_zh_translations()
-
-	# 注册英文翻译
-	var t_en = Translation.new()
-	t_en.locale = "en"
-	for key in en_dict:
-		t_en.add_message(key, en_dict[key])
-	TranslationServer.add_translation(t_en)
-
-	# Godot 3 的 TranslationServer 对动态注册的 Translation 只做精确 locale 匹配。
-	# 虽然内置了 get_language_code() 的 near_match 逻辑，但 res 值会被后续迭代的
-	# Translation 覆盖 —— 如果 EN 字典在 ZH 字典之后迭代，near_match 返回 EN 值。
-	# 因此为中文注册多个 locale 变体，确保无论游戏用 "zh" / "zh_CN" / "zh_Hans_CN"
-	# 都能精确匹配。
-	var zh_locales := ["zh", "zh_CN", "zh_Hans_CN", "zh_TW"]
-	for loc in zh_locales:
-		var t_zh = Translation.new()
-		t_zh.locale = loc
-		for key in zh_dict:
-			t_zh.add_message(key, zh_dict[key])
-		TranslationServer.add_translation(t_zh)
-
-	ModLoaderLog.info("AutoTato GDScript 翻译已注册 (en: %d, zh: %d × %d locales)" % [en_dict.size(), zh_dict.size(), zh_locales.size()], LOG_NAME)
-
-
-func _get_en_translations() -> Dictionary:
-	return {
-		"AUTOTATO_SAVE": "Save",
-		"AUTOTATO_CANCEL": "Cancel",
-		"AUTOTATO_ACTION_MANUAL": "Manual",
-		"AUTOTATO_ACTION_SKIP": "Skip",
-		"AUTOTATO_SHOP_GET": "Buy",
-		"AUTOTATO_SHOP_LOCK_UNTIL_CURSED": "Lock Until Cursed",
-		"AUTOTATO_SHOP_CURSED_ONLY": "Cursed Only",
-		"AUTOTATO_SHOP_REJECT": "Reject",
-		"AUTOTATO_CHEST_TAKE": "Take",
-		"AUTOTATO_CHEST_DISCARD": "Discard",
-		"AUTOTATO_FOLLOW_SET_RULE": "Follow Set Rule",
-		"AUTOTATO_RULE": "Rule",
-		"AUTOTATO_SECTION_AUTOMATION": "Automation Settings",
-		"AUTOTATO_SHOP_AUTOMATION": "Shop Automation",
-		"AUTOTATO_SHOP_AUTO_DESC": "Auto-decide buy/lock when entering shop",
-		"AUTOTATO_UPGRADE_AUTOMATION": "Upgrade Automation",
-		"AUTOTATO_UPGRADE_AUTO_DESC": "Auto-choose the best upgrade option",
-		"AUTOTATO_SECTION_BUDGET": "Budget Settings",
-		"AUTOTATO_MIN_GOLD_BALANCE": "Minimum Gold Balance",
-		"AUTOTATO_MIN_GOLD_DESC": "Minimum gold to keep after purchase",
-		"AUTOTATO_ITEM_PRICE_LIMIT": "Item Price Limit",
-		"AUTOTATO_ITEM_PRICE_DESC": "Max single item price for auto-buy (0=unlimited)",
-		"AUTOTATO_REROLL_BUDGET": "Reroll Budget",
-		"AUTOTATO_REROLL_BUDGET_DESC": "Max reroll price (0=unlimited)",
-		"AUTOTATO_SECTION_BEHAVIOR": "Behavior Settings",
-		"AUTOTATO_AUTO_START_WAVE": "Auto Start Next Wave",
-		"AUTOTATO_AUTO_START_WAVE_DESC": "Auto-enter next wave when shop can't reroll",
-		"AUTOTATO_KEEP_RUNNING": "Keep Running Unfocused",
-		"AUTOTATO_KEEP_RUNNING_DESC": "Game continues when window loses focus",
-		"AUTOTATO_TURBO_MODE": "Turbo Mode",
-		"AUTOTATO_TURBO_MODE_DESC": "On: skip UI and advance instantly; Off: pause 0.3s before advance",
-		"AUTOTATO_MIN_WEAPON_TIER": "Minimum Weapon Tier:",
-		"AUTOTATO_WEAPON_DATA_UNAVAILABLE": "Weapon data unavailable",
-		"AUTOTATO_WEAPON_CATEGORY_DATA_UNAVAILABLE": "Weapon category data unavailable",
-		"AUTOTATO_WEAPON_NO_CATEGORY": "This weapon belongs to no category",
-		"AUTOTATO_WEAPON_SELF_RULE": "Weapon Self Rule",
-		"AUTOTATO_CATEGORY_RULE": "Category Rules",
-		"AUTOTATO_THRESHOLD_UNLIMITED": "Unlimited",
-		"AUTOTATO_THRESHOLD_UPPER": "Upper Limit",
-		"AUTOTATO_THRESHOLD_LOWER": "Lower Limit",
-		"AUTOTATO_PRIMARY_STATS": "Primary Stats",
-		"AUTOTATO_SECONDARY_STATS": "Secondary Stats",
-		"AUTOTATO_UPGRADE_STRATEGY": "Upgrade Strategy",
-		"AUTOTATO_RESPECT_THRESHOLDS": "Respect Thresholds",
-		"AUTOTATO_RESPECT_THRESHOLDS_DESC": "Evaluate all configured thresholds; filter only when ALL related stats exceed limits",
-		"AUTOTATO_MIN_TIER": "Minimum Tier",
-		"AUTOTATO_QUALITY_FIRST": "Quality First",
-		"AUTOTATO_QUALITY_FIRST_DESC": "Prioritize higher tier (rarity) options",
-		"AUTOTATO_FORBID_STATS": "Forbidden Stats",
-		"AUTOTATO_FORBID_STATS_DESC": "Upgrade options with these stats will be filtered out",
-		"AUTOTATO_IGNORE_FORBID_ON_STUCK": "Ignore Forbid When Stuck",
-		"AUTOTATO_IGNORE_FORBID_ON_STUCK_DESC": "When all candidates are filtered, fall back to unfiltered sort",
-		"AUTOTATO_STAT_PRIORITY": "Stat Priority",
-		"AUTOTATO_STAT_PRIORITY_DESC": "Within same tier, prioritize options with these stats in order",
-		"AUTOTATO_PRIORITIZED": "Prioritized",
-		"AUTOTATO_NOT_PRIORITIZED": "Not Prioritized",
-		"AUTOTATO_REMOVE": "Remove",
-		"AUTOTATO_ADD_TO_PRIORITY": "Add to Priority",
-		"AUTOTATO_ITEM_TYPE_ALL": "Type: All",
-		"AUTOTATO_ITEM_TYPE_UNIQUE": "Type: Unique",
-		"AUTOTATO_ITEM_TYPE_LIMITED": "Type: Limited",
-		"AUTOTATO_ITEM_TYPE_OTHER": "Type: Other",
-		"AUTOTATO_SHOP_FILTER_ALL": "Shop: All",
-		"AUTOTATO_CHEST_FILTER_ALL": "Chest: All",
-		"AUTOTATO_SHOP_RESPECT_THRESHOLDS": "Shop Respects Thresholds",
-		"AUTOTATO_CHEST_RESPECT_THRESHOLDS": "Chest Respects Thresholds",
-		"AUTOTATO_ITEM_DATA_UNAVAILABLE": "Item data unavailable",
-		"AUTOTATO_SHOP_BEHAVIOR": "Shop Behavior",
-		"AUTOTATO_CHEST_BEHAVIOR": "Chest Behavior",
-		"AUTOTATO_WEAPON_RULE": "Weapon Rule",
-		"AUTOTATO_ITEM_RULE": "Item Rule",
-		"AUTOTATO_NO_CATEGORY": "No Category",
-		"AUTOTATO_TAB_GENERAL": "General",
-		"AUTOTATO_TAB_UPGRADE": "Upgrade",
-		"AUTOTATO_TAB_ITEMS": "Items",
-		"AUTOTATO_TAB_WEAPONS": "Weapons",
-		"AUTOTATO_TAB_THRESHOLDS": "Thresholds",
-		"AUTOTATO_CORNER_SHOP": "",
-		"AUTOTATO_CORNER_CHEST": "",
-		"AUTOTATO_PANEL_TITLE": "AutoTato Configuration",
-		"AUTOTATO_AUTOMATION": "AutoTato",
-		"AUTOTATO_TIER_COMMON": "Common",
-		"AUTOTATO_TIER_RARE": "Rare",
-		"AUTOTATO_TIER_EPIC": "Epic",
-		"AUTOTATO_TIER_LEGENDARY": "Legendary",
-		"AUTOTATO_SHOP_FILTER_FMT": "Shop: %s",
-		"AUTOTATO_CHEST_FILTER_FMT": "Chest: %s",
-		"AUTOTATO_UNKNOWN": "Unknown",
-	}
-
-
-func _get_zh_translations() -> Dictionary:
-	return {
-		"AUTOTATO_SAVE": "保存",
-		"AUTOTATO_CANCEL": "取消",
-		"AUTOTATO_ACTION_MANUAL": "手动",
-		"AUTOTATO_ACTION_SKIP": "跳过",
-		"AUTOTATO_SHOP_GET": "购买",
-		"AUTOTATO_SHOP_LOCK_UNTIL_CURSED": "锁定等诅咒",
-		"AUTOTATO_SHOP_CURSED_ONLY": "仅诅咒",
-		"AUTOTATO_SHOP_REJECT": "拒绝",
-		"AUTOTATO_CHEST_TAKE": "拿取",
-		"AUTOTATO_CHEST_DISCARD": "丢弃",
-		"AUTOTATO_FOLLOW_SET_RULE": "受类别控制",
-		"AUTOTATO_RULE": "规则",
-		"AUTOTATO_SECTION_AUTOMATION": "自动化设置",
-		"AUTOTATO_SHOP_AUTOMATION": "商店自动化",
-		"AUTOTATO_SHOP_AUTO_DESC": "进入商店时自动决策购买/锁定",
-		"AUTOTATO_UPGRADE_AUTOMATION": "升级自动化",
-		"AUTOTATO_UPGRADE_AUTO_DESC": "升级时自动选择最优项",
-		"AUTOTATO_SECTION_BUDGET": "预算设置",
-		"AUTOTATO_MIN_GOLD_BALANCE": "最低金币保留",
-		"AUTOTATO_MIN_GOLD_DESC": "购买后至少保留的金币数",
-		"AUTOTATO_ITEM_PRICE_LIMIT": "物品价格上限",
-		"AUTOTATO_ITEM_PRICE_DESC": "单件物品价格超过此值不自动购买 (0=不限)",
-		"AUTOTATO_REROLL_BUDGET": "刷新金额上限",
-		"AUTOTATO_REROLL_BUDGET_DESC": "单次刷新价格的上限, 超过此值不自动刷新 (0=不限)",
-		"AUTOTATO_SECTION_BEHAVIOR": "行为设置",
-		"AUTOTATO_AUTO_START_WAVE": "自动开始下一关",
-		"AUTOTATO_AUTO_START_WAVE_DESC": "商店无法刷新时自动进入下一波敌袭",
-		"AUTOTATO_KEEP_RUNNING": "失焦保持运行",
-		"AUTOTATO_KEEP_RUNNING_DESC": "窗口失去焦点时游戏继续运行",
-		"AUTOTATO_TURBO_MODE": "急速模式",
-		"AUTOTATO_TURBO_MODE_DESC": "开启: 跳过界面停留瞬间推进; 关闭: 每次推进前停留 0.3s 让界面可见",
-		"AUTOTATO_MIN_WEAPON_TIER": "最低武器级别:",
-		"AUTOTATO_WEAPON_DATA_UNAVAILABLE": "武器数据不可用",
-		"AUTOTATO_WEAPON_CATEGORY_DATA_UNAVAILABLE": "武器类别数据不可用",
-		"AUTOTATO_WEAPON_NO_CATEGORY": "此武器不属于任何类别",
-		"AUTOTATO_WEAPON_SELF_RULE": "武器自身规则",
-		"AUTOTATO_CATEGORY_RULE": "类别规则",
-		"AUTOTATO_THRESHOLD_UNLIMITED": "不限",
-		"AUTOTATO_THRESHOLD_UPPER": "上限",
-		"AUTOTATO_THRESHOLD_LOWER": "下限",
-		"AUTOTATO_PRIMARY_STATS": "主要属性",
-		"AUTOTATO_SECONDARY_STATS": "次要属性",
-		"AUTOTATO_UPGRADE_STRATEGY": "升级策略",
-		"AUTOTATO_RESPECT_THRESHOLDS": "受阈值影响",
-		"AUTOTATO_RESPECT_THRESHOLDS_DESC": "当升级选项含有多个可转换的属性时，会同时判断所有已配置的阈值；只有当全部相关属性都触达限制时，该选项才会被过滤。",
-		"AUTOTATO_MIN_TIER": "最低等级",
-		"AUTOTATO_QUALITY_FIRST": "品质优先",
-		"AUTOTATO_QUALITY_FIRST_DESC": "优先选择高等级 (Tier) 的选项",
-		"AUTOTATO_FORBID_STATS": "禁止属性",
-		"AUTOTATO_FORBID_STATS_DESC": "含这些属性的升级项将被过滤掉",
-		"AUTOTATO_IGNORE_FORBID_ON_STUCK": "卡住时忽略禁止列表",
-		"AUTOTATO_IGNORE_FORBID_ON_STUCK_DESC": "所有候选都被过滤时, 回退到不过滤的排序结果",
-		"AUTOTATO_STAT_PRIORITY": "优先级排序",
-		"AUTOTATO_STAT_PRIORITY_DESC": "同等级内, 按此顺序优先选择含对应属性的升级项",
-		"AUTOTATO_PRIORITIZED": "已优先",
-		"AUTOTATO_NOT_PRIORITIZED": "未优先",
-		"AUTOTATO_REMOVE": "移除",
-		"AUTOTATO_ADD_TO_PRIORITY": "加入优先",
-		"AUTOTATO_ITEM_TYPE_ALL": "类型: 不限",
-		"AUTOTATO_ITEM_TYPE_UNIQUE": "类型: 独特",
-		"AUTOTATO_ITEM_TYPE_LIMITED": "类型: 限制",
-		"AUTOTATO_ITEM_TYPE_OTHER": "类型: 其他",
-		"AUTOTATO_SHOP_FILTER_ALL": "商店: 不限",
-		"AUTOTATO_CHEST_FILTER_ALL": "箱子: 不限",
-		"AUTOTATO_SHOP_RESPECT_THRESHOLDS": "商店受阈值影响",
-		"AUTOTATO_CHEST_RESPECT_THRESHOLDS": "箱子受阈值影响",
-		"AUTOTATO_ITEM_DATA_UNAVAILABLE": "物品数据不可用",
-		"AUTOTATO_SHOP_BEHAVIOR": "商店行为",
-		"AUTOTATO_CHEST_BEHAVIOR": "箱子行为",
-		"AUTOTATO_WEAPON_RULE": "武器规则",
-		"AUTOTATO_ITEM_RULE": "物品规则",
-		"AUTOTATO_NO_CATEGORY": "无类别",
-		"AUTOTATO_TAB_GENERAL": "通用",
-		"AUTOTATO_TAB_UPGRADE": "升级",
-		"AUTOTATO_TAB_ITEMS": "物品",
-		"AUTOTATO_TAB_WEAPONS": "武器",
-		"AUTOTATO_TAB_THRESHOLDS": "阈值",
-		"AUTOTATO_CORNER_SHOP": "商:",
-		"AUTOTATO_CORNER_CHEST": "箱:",
-		"AUTOTATO_PANEL_TITLE": "AutoTato 配置",
-		"AUTOTATO_AUTOMATION": "AutoTato",
-		"AUTOTATO_TIER_COMMON": "普通",
-		"AUTOTATO_TIER_RARE": "精良",
-		"AUTOTATO_TIER_EPIC": "史诗",
-		"AUTOTATO_TIER_LEGENDARY": "传说",
-		"AUTOTATO_SHOP_FILTER_FMT": "商店: %s",
-		"AUTOTATO_CHEST_FILTER_FMT": "箱子: %s",
-		"AUTOTATO_UNKNOWN": "未知",
-	}
+	var count := 0
+	if dir.open(translations_dir_path) == OK:
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+		while file_name != "":
+			if file_name.ends_with(".translation"):
+				ModLoaderMod.add_translation(translations_dir_path.plus_file(file_name))
+				count += 1
+			file_name = dir.get_next()
+		dir.list_dir_end()
+	ModLoaderLog.info("AutoTato 翻译已加载 (%d 个 .translation 文件)" % count, LOG_NAME)
