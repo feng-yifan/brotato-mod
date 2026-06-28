@@ -66,6 +66,9 @@ var _at_save_btn: Button = null
 var _at_is_weapon := false
 var _at_corner_font = null
 var _at_btn_font = null
+# 手柄 B 键守卫: 标记弹窗是否由手柄 B 键打开 (B 同时映射 ui_ban + ui_cancel,
+# 松开时 ui_cancel released 会尝试关闭弹窗, 需要跳过)
+var _at_popup_opened_by_gamepad := false
 
 
 func _ready() -> void:
@@ -134,24 +137,22 @@ func _at_setup_buttons() -> void:
 		rule_btn.add_font_override("font", _at_btn_font)
 	rule_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rule_btn.connect("pressed", self, "_at_rule_pressed")
-	# X 键图标 — 使用 vanilla InputIcon 脚本, 与 LockButton 的
-	# AdditionalIcon 风格一致 (51px 最小宽度, 设备切换时自动更新).
-	# 右侧锚定, 不干扰 Button 内置文字.
+	# 快捷键图标 — 100% 模仿 RerollButton AdditionalIcon
+	#   (垂直居中, margin_left=14, 51px 宽)
 	var icon_script = load("res://ui/hud/ui_input_icon.gd")
 	if icon_script:
 		var xicon := TextureRect.new()
 		xicon.set_script(icon_script)
-		xicon.input_string = "ui_select"
+		xicon.input_string = "ui_coop_ban"
 		xicon.player_index = 0
 		xicon.rect_min_size = Vector2(51, 0)
-		xicon.anchor_left = 1.0
-		xicon.anchor_right = 1.0
-		xicon.anchor_bottom = 1.0
-		xicon.margin_left = -55
-		xicon.margin_right = -4
-		xicon.margin_bottom = 0
+		xicon.anchor_top = 0.5
+		xicon.anchor_bottom = 0.5
+		xicon.margin_left = 14.0
+		xicon.margin_top = -25.5
+		xicon.margin_right = 65.0
+		xicon.margin_bottom = 25.5
 		xicon.expand = true
-		xicon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		xicon.mouse_filter = MOUSE_FILTER_IGNORE
 		rule_btn.add_child(xicon)
 	btn_row.add_child(rule_btn)
@@ -426,7 +427,6 @@ func _at_ensure_popup() -> void:
 	_at_popup.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.size_flags_horizontal = SIZE_FILL
 	panel.mouse_filter = MOUSE_FILTER_STOP
 	center.add_child(panel)
 
@@ -496,18 +496,22 @@ func _at_ensure_popup() -> void:
 	_at_weapon_vbox.name = "WeaponContent"
 	_at_weapon_vbox.add_constant_override("separation", 8)
 
-	var self_row := HBoxContainer.new()
-	self_row.add_child(_at_label("武器自身规则"))
+	var self_grid := GridContainer.new()
+	self_grid.columns = 2
+	self_grid.add_constant_override("hseparation", 12)
+	var self_label := _at_label(tr("AUTOTATO_WEAPON_SELF_RULE"))
+	self_label.rect_min_size = Vector2(80, 0)
+	self_grid.add_child(self_label)
 	_at_self_opt = OptionButton.new()
 	_at_self_opt.size_flags_horizontal = SIZE_EXPAND_FILL
 	_at_self_opt.focus_mode = Control.FOCUS_ALL
 	for pair in WEAPON_SELF_OPTIONS:
 		_at_self_opt.add_item(tr(pair[1]))
-	self_row.add_child(_at_self_opt)
-	_at_weapon_vbox.add_child(self_row)
+	self_grid.add_child(_at_self_opt)
+	_at_weapon_vbox.add_child(self_grid)
 
 	_at_weapon_vbox.add_child(HSeparator.new())
-	_at_weapon_vbox.add_child(_at_label("类别规则"))
+	_at_weapon_vbox.add_child(_at_label(tr("AUTOTATO_CATEGORY_RULE")))
 
 	_at_set_vbox = VBoxContainer.new()
 	_at_set_vbox.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -602,20 +606,22 @@ func _input(event: InputEvent) -> void:
 			# 如果 OptionButton 下拉菜单正在显示, 不关闭弹窗
 			if _at_has_visible_popup_menu():
 				return
+			# 守卫: 手柄 B 松开时不关闭刚由 B 键打开的弹窗
+			# (手柄 B 同时映射 ui_ban 和 ui_cancel, ui_cancel released
+			#  会在此触发, 但这一步应被忽略)
+			if event is InputEventJoypadButton and _at_popup_opened_by_gamepad:
+				_at_popup_opened_by_gamepad = false
+				return
 			_at_popup.hide()
 			get_tree().set_input_as_handled()
 		return
 
 	# 卡片有焦点时的快捷键
 	if _at_card_has_focus():
-		if event.is_action_pressed("ui_select"):
-			# X 键: 打开物品/武器规则弹窗
+		if event.is_action_pressed("ui_ban"):
+			# B 键 (手柄) / R 键 (键盘): 打开物品/武器规则弹窗
 			_at_rule_pressed()
-			get_tree().set_input_as_handled()
-		elif event.is_action_pressed("ui_ban"):
-			# B 键: 透传给 ban 按钮
-			if _ban_button and _ban_button.visible and not _ban_button.disabled:
-				_ban_button.emit_signal("pressed")
+			_at_popup_opened_by_gamepad = (event is InputEventJoypadButton)
 			get_tree().set_input_as_handled()
 
 	._input(event)

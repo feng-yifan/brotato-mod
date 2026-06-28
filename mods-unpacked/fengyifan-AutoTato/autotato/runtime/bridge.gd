@@ -383,15 +383,15 @@ func reset_to_defaults() -> void:
 # 决策入口
 # ============================================================================
 
-func decide_shop_item(item_data, gold: int, player_index: int = 0, force: bool = false):
+func decide_shop_item(item_data, currency: int, price: int, player_index: int = 0, force: bool = false):
 	var item_id := _safe_item_id(item_data)
 	# force=true 时绕过自动化开关 (商店"继续决策"按钮手动触发用)
 	if not force and not is_shop_automation_enabled():
 		return Result.make(item_id, Result.STATE_MANUAL, "商店自动化已关闭")
 	var rule := get_item_rule(item_id)
-	var ctx := _build_item_context(gold, false, player_index)
-	# 传入含通胀的真实售价 (与容器 shop_item.value 一致), 让决策器预算墙用同样的价格判断
-	ctx["item_price"] = _real_shop_price(item_data, player_index)
+	var ctx := _build_item_context(currency, false, player_index)
+	# 价格从 ShopItem 节点直接读取 (已含 hp_shop 转换), 与 vanilla UI 同源
+	ctx["item_price"] = price
 	return ItemDecider.decide(item_data, rule, ctx)
 
 
@@ -413,7 +413,6 @@ func _decide_shop_round(executor, player_index: int, force: bool) -> Array:
 	var seq: int = _next_decision_seq()
 	_log("")
 	_log("┌─ AutoTato 商店决策 波次=%d 决策=%d ──────────────────" % [wave, seq])
-	_log("│ 玩家=%d 金币=%d" % [player_index, _read_player_gold(player_index)])
 
 	var results: Array = []
 	var slots = executor._at_get_shop_slots(player_index)
@@ -425,8 +424,6 @@ func _decide_shop_round(executor, player_index: int, force: bool) -> Array:
 	var player_slots = slots[player_index]
 	if typeof(player_slots) != TYPE_ARRAY:
 		return results
-
-	var gold: int = _read_player_gold(player_index)
 
 	for slot_index in player_slots.size():
 		var pair = player_slots[slot_index]
@@ -442,9 +439,14 @@ func _decide_shop_round(executor, player_index: int, force: bool) -> Array:
 			continue
 
 		var item_data = pair[0]
-		var price: int = _real_shop_price(item_data, player_index)
+		var item_id := _safe_item_id(item_data)
+		# 每 slot 重新查询货币 (购买副作用如 Cake +max_hp 已通过即时执行反映)
+		var currency: int = _read_player_currency(player_index)
+		_log("│ 玩家=%d 货币=%d" % [player_index, currency])
+		# 价格从 ShopItem 节点读取 (已含 hp_shop 除以 20 等转换, 与 vanilla UI 同源)
+		var price: int = executor._at_get_item_price(item_id, player_index)
 
-		var dr = decide_shop_item(item_data, gold, player_index, force)
+		var dr = decide_shop_item(item_data, currency, price, player_index, force)
 
 		entry = {
 			"slot_index": slot_index,
@@ -454,8 +456,9 @@ func _decide_shop_round(executor, player_index: int, force: bool) -> Array:
 		}
 		results.append(entry)
 
-		if dr.terminal_state == Result.STATE_PURCHASED:
-			gold -= price
+		# 即时执行购买, 让物品副作用 (stat 改变、hp_shop 余额变化等)
+		# 在下一 slot 决策前已反映到 RunData 中
+		executor._at_execute_one(entry, player_index)
 
 	# 汇总
 	var purchased := 0
@@ -492,26 +495,36 @@ func run_shop_session(executor, player_index: int, force: bool = false) -> Dicti
 		var round_has_skip := false
 		var round_has_manual := false
 
-		# 1. 决策本轮
+		# 1. 决策本轮 (内部已即时执行购买, 让副作用在后续 slot 生效)
 		var results: Array = _decide_shop_round(executor, player_index, force)
 
-		# 2. 统计本轮 break 条件 (在实际执行前, 因为 manual 在 decision 阶段就已确定)
+		# 2. 统计本轮状态 (结果即执行结果, totals 直接从 results 汇总)
+		var round_purchases := 0
+		var round_locks := 0
+		var round_skips := 0
+		var round_manuals := 0
 		for r in results:
 			var st: String = String(r.get("terminal_state", ""))
-			if st == Result.STATE_SKIPPED:
-				round_has_skip = true
-			elif st == Result.STATE_MANUAL:
-				round_has_manual = true
-				session_has_manual = true
+			match st:
+				Result.STATE_SKIPPED:
+					round_has_skip = true
+					round_skips += 1
+				Result.STATE_MANUAL:
+					round_has_manual = true
+					round_manuals += 1
+				Result.STATE_PURCHASED:
+					round_purchases += 1
+				Result.STATE_LOCKED:
+					round_locks += 1
 
-		# 3. 通过 executor 执行
-		var applied: Dictionary = executor._at_execute_shop_round(results, player_index)
-		total_purchases += int(applied.get("purchases", 0))
-		total_locks += int(applied.get("locks", 0))
-		total_skips += int(applied.get("skips", 0))
-		total_manuals += int(applied.get("manuals", 0))
+		total_purchases += round_purchases
+		total_locks += round_locks
+		total_skips += round_skips
+		total_manuals += round_manuals
+		if round_has_manual:
+			session_has_manual = true
 
-		# 4. 停止条件
+		# 3. 停止条件
 		if not round_has_skip:
 			_log("商店会话: 本轮无跳过项, 停止 轮数=%d" % round_num)
 			break
@@ -523,8 +536,9 @@ func run_shop_session(executor, player_index: int, force: bool = false) -> Dicti
 			break
 		if not _can_shop_reroll(executor, player_index):
 			break
-		_log("商店会话: %d 项跳过, 自动刷新 (第 %d 轮)" % [total_skips, round_num])
+		_log("商店会话: %d 项跳过, 自动刷新 (第 %d 轮)" % [round_skips, round_num])
 		executor._at_reroll_shop(player_index)
+
 
 	var summary := {
 		"purchases": total_purchases,
@@ -601,6 +615,18 @@ func _read_player_gold(player_index: int) -> int:
 	return int(RunData.get_player_gold(player_index))
 
 
+# 读取玩家当前货币余额 (hp_shop 角色返回 max_hp, 普通角色返回 gold).
+# 使用 vanilla 已实现的 get_player_currency() 抽象, 不做任何自行换算.
+func _read_player_currency(player_index: int) -> int:
+	if typeof(RunData) != TYPE_OBJECT:
+		return 0
+	if RunData.has_method("get_player_currency"):
+		return int(RunData.get_player_currency(player_index))
+	if RunData.has_method("get_player_gold"):
+		return int(RunData.get_player_gold(player_index))
+	return 0
+
+
 func decide_upgrade(option_list: Array, player_index: int = 0, force: bool = false) -> int:
 	if not force and not is_upgrade_automation_enabled():
 		return UpgradeDecider.NO_PICK
@@ -614,10 +640,10 @@ func decide_upgrade(option_list: Array, player_index: int = 0, force: bool = fal
 # 私有 helpers
 # ============================================================================
 
-func _build_item_context(gold: int, is_crate: bool, player_index: int) -> Dictionary:
+func _build_item_context(currency: int, is_crate: bool, player_index: int) -> Dictionary:
 	var general: Dictionary = _config.get("general", {})
 	return {
-		"gold": gold,
+		"currency": currency,
 		"player_index": player_index,
 		"is_crate": is_crate,
 		"current_wave": _current_wave(),
@@ -671,23 +697,6 @@ func _next_decision_seq() -> int:
 		_decision_wave = wave
 	_decision_count += 1
 	return _decision_count
-
-
-# 商店物品真实售价 (含波次通胀等, 与 vanilla shop_item.value = ItemService.get_value 一致).
-# 让决策器预算墙用和容器同样的价格判断, 避免基础价可负担但通胀价被容器拒绝.
-func _real_shop_price(item_data, player_index: int) -> int:
-	var base: int = ItemU.get_base_value(item_data)
-	if typeof(ItemService) != TYPE_OBJECT or not ItemService.has_method("get_value"):
-		return base
-	if typeof(RunData) != TYPE_OBJECT:
-		return base
-	var is_weapon: bool = false
-	var id_hash: int = 0
-	if item_data is Resource:
-		var wid = item_data.get("weapon_id")
-		is_weapon = (wid != null and str(wid) != "")
-		id_hash = int(item_data.get("my_id_hash"))
-	return int(ItemService.get_value(RunData.current_wave, base, player_index, true, is_weapon, id_hash))
 
 
 func _log(msg: String) -> void:

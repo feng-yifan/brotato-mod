@@ -234,6 +234,24 @@ func _at_find_shop_item_by_id(container, item_id: String):
 	return null
 
 
+# 从 ShopItem 节点读取已转换的价格.
+# vanilla shop_item.set_shop_item() 已做 hp_shop 除以 20 等转换,
+# bridge 直接读 node.value 与 vanilla UI 同源, 避免自己算价格.
+func _at_get_item_price(item_id: String, player_index: int) -> int:
+	var container = _get_shop_items_container(player_index)
+	var node = _at_find_shop_item_by_id(container, item_id)
+	if node != null:
+		var val = node.get("value")
+		if typeof(val) == TYPE_INT or typeof(val) == TYPE_REAL:
+			return int(val)
+	return 0
+
+# 执行单条决策结果 (purchased → emit buy_button_pressed, locked → 锁定, 其余 noop).
+# 供 bridge 在决策循环内即时执行, 让物品副作用 (如 Cake +max_hp) 在下一 slot 前生效.
+func _at_execute_one(result: Dictionary, player_index: int) -> String:
+	return _autotato_apply_decision(result, player_index)
+
+
 # 清除 shop_items_container 的 0.05s 购买限流 (_is_delay_active + _buy_delay_timer),
 # 让自动模式连续购买不被限流拦住 (与箱子 _autotato_clear_button_guard 同理).
 func _at_clear_buy_delay(container) -> void:

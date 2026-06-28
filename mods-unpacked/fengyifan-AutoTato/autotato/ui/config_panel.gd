@@ -127,7 +127,6 @@ func _build_reset_button() -> void:
 func _on_reset_pressed() -> void:
 	var dialog := ConfirmationDialog.new()
 	dialog.name = "ResetConfirmDialog"
-	dialog.window_title = tr("AUTOTATO_RESET_CONFIRM_TITLE")
 	dialog.dialog_text = tr("AUTOTATO_RESET_CONFIRM_MSG")
 	dialog.get_ok().text = tr("AUTOTATO_CONFIRM")
 	dialog.get_cancel().text = tr("AUTOTATO_CANCEL")

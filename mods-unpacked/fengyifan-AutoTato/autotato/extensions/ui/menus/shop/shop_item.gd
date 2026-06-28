@@ -61,6 +61,9 @@ var _at_corner_shop: Label = null
 var _at_corner_chest: Label = null
 var _at_popup_title: Label = null
 var _at_save_btn: Button = null
+# 手柄 B 键守卫: 标记弹窗是否由手柄 B 键打开 (B 同时映射 ui_ban + ui_cancel,
+# 松开时 ui_cancel released 会尝试关闭弹窗, 需要跳过)
+var _at_popup_opened_by_gamepad := false
 
 
 func _ready() -> void:
@@ -96,9 +99,9 @@ func _ready() -> void:
 		btn_parent.add_child(btn)
 		btn_parent.move_child(btn, ban_idx)
 		btn.connect("pressed", self, "_at_rule_pressed")
-		# B 键图标 — 使用 vanilla InputIcon 脚本, 与 LockButton/BanButton 的
-		# AdditionalIcon 风格一致 (51px 最小宽度, 设备切换时自动更新).
-		# 右侧锚定, 不干扰 Button 内置文字.
+		# 快捷键图标 — 100% 模仿 LockButton 布局:
+		#   左侧: AdditionalIcon (无 anchor, 左上角, 51px)
+		#   右侧: LockIcon (右侧锚定, 51px)
 		var icon_script = load("res://ui/hud/ui_input_icon.gd")
 		if icon_script:
 			var bicon := TextureRect.new()
@@ -106,16 +109,23 @@ func _ready() -> void:
 			bicon.input_string = "ui_coop_ban"
 			bicon.player_index = 0
 			bicon.rect_min_size = Vector2(51, 0)
-			bicon.anchor_left = 1.0
-			bicon.anchor_right = 1.0
-			bicon.anchor_bottom = 1.0
-			bicon.margin_left = -55
-			bicon.margin_right = -4
-			bicon.margin_bottom = 0
+			bicon.margin_right = 51.0
 			bicon.expand = true
-			bicon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 			bicon.mouse_filter = MOUSE_FILTER_IGNORE
 			btn.add_child(bicon)
+			var ricon := TextureRect.new()
+			ricon.set_script(icon_script)
+			ricon.input_string = "ui_coop_ban"
+			ricon.player_index = 0
+			ricon.rect_min_size = Vector2(51, 0)
+			ricon.anchor_left = 1.0
+			ricon.anchor_right = 1.0
+			ricon.anchor_bottom = 1.0
+			ricon.margin_left = -51.0
+			ricon.expand = true
+			ricon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			ricon.mouse_filter = MOUSE_FILTER_IGNORE
+			btn.add_child(ricon)
 
 	# 2. LockButton 恢复原始 size_flags (EXPAND+SHRINK_CENTER=7), 不强制宽度
 	#    (之前强制 220 比原始窄; 宽度交给布局, 规则按钮延迟同步到它的实际宽度)
@@ -346,7 +356,7 @@ func _at_build_set_rows(set_rules: Dictionary) -> void:
 
 	var weapon_sets = item_data.get("sets")
 	if not weapon_sets is Array or weapon_sets.size() == 0:
-		_at_set_vbox.add_child(_at_label("无类别"))
+		_at_set_vbox.add_child(_at_label(tr("AUTOTATO_NO_CATEGORY")))
 		return
 
 	var all_sets = ItemService.get("sets") if typeof(ItemService) == TYPE_OBJECT else []
@@ -413,7 +423,6 @@ func _at_ensure_popup() -> void:
 	_at_popup.add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.size_flags_horizontal = SIZE_FILL
 	panel.mouse_filter = MOUSE_FILTER_STOP
 	center.add_child(panel)
 
@@ -484,19 +493,23 @@ func _at_ensure_popup() -> void:
 	_at_weapon_vbox.name = "WeaponContent"
 	_at_weapon_vbox.add_constant_override("separation", 8)
 
-	# 武器自身规则 — 同一行
-	var self_row := HBoxContainer.new()
-	self_row.add_child(_at_label("武器自身规则"))
+	# 武器自身规则 — 与物品区域一致的 GridContainer 两列布局
+	var self_grid := GridContainer.new()
+	self_grid.columns = 2
+	self_grid.add_constant_override("hseparation", 12)
+	var self_label := _at_label(tr("AUTOTATO_WEAPON_SELF_RULE"))
+	self_label.rect_min_size = Vector2(80, 0)
+	self_grid.add_child(self_label)
 	_at_self_opt = OptionButton.new()
 	_at_self_opt.size_flags_horizontal = SIZE_EXPAND_FILL
 	_at_self_opt.focus_mode = Control.FOCUS_ALL
 	for pair in WEAPON_SELF_OPTIONS:
 		_at_self_opt.add_item(tr(pair[1]))
-	self_row.add_child(_at_self_opt)
-	_at_weapon_vbox.add_child(self_row)
+	self_grid.add_child(_at_self_opt)
+	_at_weapon_vbox.add_child(self_grid)
 
 	_at_weapon_vbox.add_child(HSeparator.new())
-	_at_weapon_vbox.add_child(_at_label("类别规则"))
+	_at_weapon_vbox.add_child(_at_label(tr("AUTOTATO_CATEGORY_RULE")))
 
 	# 类别规则行 — 自适应, 无 ScrollContainer
 	_at_set_vbox = VBoxContainer.new()
@@ -592,19 +605,22 @@ func _input(event: InputEvent) -> void:
 		if event.is_action_released("ui_cancel"):
 			if _at_has_visible_popup_menu():
 				return
+			# 守卫: 手柄 B 松开时不关闭刚由 B 键打开的弹窗
+			# (手柄 B 同时映射 ui_ban 和 ui_cancel, ui_cancel released
+			#  会在此触发, 但这一步应被忽略)
+			if event is InputEventJoypadButton and _at_popup_opened_by_gamepad:
+				_at_popup_opened_by_gamepad = false
+				return
 			_at_popup.hide()
 			get_tree().set_input_as_handled()
 		return
 
 	# 卡片有焦点时的快捷键
 	if _at_card_has_focus():
-		if event.is_action_released("ui_cancel"):
-			# B 键: 打开物品/武器规则弹窗
+		if event.is_action_pressed("ui_ban"):
+			# B 键 (手柄) / R 键 (键盘): 打开物品/武器规则弹窗
 			_at_rule_pressed()
-			get_tree().set_input_as_handled()
-		elif event.is_action_pressed("ui_ban"):
-			# X 键: 透传给锁定按钮
-			_at_trigger_lock()
+			_at_popup_opened_by_gamepad = (event is InputEventJoypadButton)
 			get_tree().set_input_as_handled()
 	# 非快捷键事件不消费, 让 FocusEmulator/vanilla _input 正常处理
 
@@ -623,7 +639,7 @@ func _at_card_has_focus() -> bool:
 
 
 func _at_trigger_lock() -> void:
-	# 透传 X 键: 在焦点落在规则按钮时触发物品锁定
+	# 透传 B 键: 在焦点落在规则按钮时触发物品锁定
 	if item_data == null or not active:
 		return
 	if not item_data.is_lockable:

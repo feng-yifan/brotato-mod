@@ -6,7 +6,7 @@ class_name AT_ItemDecider
 # ----------------------------------------------------------------------------
 # 职责:
 #   给定一个 item_data (ItemData Resource 或 Dictionary), 在用户配置的 rule
-#   与运行时 context (金币 / 玩家槽 / 阈值配置 / 价格上限 ...) 下, 输出唯一
+#   与运行时 context (货币 / 玩家槽 / 阈值配置 / 价格上限 ...) 下, 输出唯一
 #   终态 DecisionResult, 描述"该物品应被如何处置".
 #
 # 动作集 (与旧 mod v4 行为契约对齐, 但 STATE_HUMAN 已改名 STATE_MANUAL):
@@ -23,7 +23,7 @@ class_name AT_ItemDecider
 #     - reject              : 直接 SKIPPED
 #     - cursed_only         : 仅诅咒版本拿取, 非诅咒 SKIPPED;
 #                             同样不参与阈值反转
-#     - take                : PURCHASED (箱子不扣金币, 复用 PURCHASED 终态)
+#     - take                : PURCHASED (箱子不扣货币, 复用 PURCHASED 终态)
 #     - manual              : 不干预 (默认值)
 #
 # 终态 (decision_result.gd STATE_*):
@@ -39,7 +39,7 @@ class_name AT_ItemDecider
 #                v7: 使用 context 级 bool 开关 (shop_respect_thresholds / chest_respect_thresholds)
 #   6. 诅咒分支: cursed_only 非诅咒 SKIPPED, lock_until_cursed 非诅咒 LOCKED
 #   7. 预算墙: price <= item_price_threshold (0 视为不限) 且
-#              gold - price >= min_gold_balance;
+#              currency - price >= min_gold_balance;
 #              lock_until_cursed 不通过 -> LOCKED, 其余不通过 -> SKIPPED
 #   8. dispatch -> STATE_PURCHASED
 #
@@ -102,12 +102,12 @@ const STATE_LABELS := {
 #                 shop_action  : String  非法/缺 -> manual
 #                 chest_action : String  非法/缺 -> manual
 #   context   : Dictionary, 字段:
-#                 gold                       : int     玩家当前金币
+#                 currency                   : int     玩家当前货币 (hp_shop 时为 max_hp, 否则金币)
 #                 player_index               : int     玩家槽 (本地 1P = 0)
 #                 is_crate                   : bool    true=箱子, false=商店
 #                 current_danger             : int     0-5, P1 不用但透传保留
 #                 threshold_config           : Dictionary (传给 ThresholdGate)
-#                 min_gold_balance           : int     购物后金币安全垫
+#                 min_gold_balance           : int     购物后货币安全垫
 #                 item_price_threshold       : int     单件价格上限 (0 = 不限)
 #                 shop_respect_thresholds    : bool    v7: 商店是否受阈值影响
 #                 chest_respect_thresholds   : bool    v7: 箱子是否受阈值影响
@@ -116,7 +116,7 @@ const STATE_LABELS := {
 static func decide(item_data, rule: Dictionary, context: Dictionary):
 	var item_id: String = ItemU.get_id(item_data)
 	var is_crate: bool = bool(context.get("is_crate", false))
-	var gold: int = int(context.get("gold", 0))
+	var currency: int = int(context.get("currency", 0))
 	var wave: int = int(context.get("current_wave", 0))
 	var seq: int = int(context.get("decision_seq", 0))
 	var scene_name: String = "箱子" if is_crate else "商店"
@@ -124,7 +124,7 @@ static func decide(item_data, rule: Dictionary, context: Dictionary):
 	# 决策日志头
 	_log("")
 	_log("┌─ AutoTato 物品决策 ────────────────────────────────")
-	_log("│ %s (%s) | 金币=%d | 波次=%d 决策=%d | %s" % [TranslationServer.translate(ItemU.get_name(item_data)), item_id, gold, wave, seq, scene_name])
+	_log("│ %s (%s) | 货币=%d | 波次=%d 决策=%d | %s" % [TranslationServer.translate(ItemU.get_name(item_data)), item_id, currency, wave, seq, scene_name])
 
 	# Step 0: 如果是武器, 解析武器规则的最终 action
 	var is_weapon: bool = _is_weapon_item(item_data)
@@ -159,10 +159,10 @@ static func decide(item_data, rule: Dictionary, context: Dictionary):
 	if action == SHOP_MANUAL or action == CHEST_MANUAL:
 		if is_weapon and not is_crate:
 			# 武器手动但预算墙不通过 → 直接跳过
-			var price: int = ItemU.get_base_value(item_data)
+			var price: int = int(context.get("item_price", ItemU.get_base_value(item_data)))
 			var mgb: int = int(context.get("min_gold_balance", 0))
 			var ipt: int = int(context.get("item_price_threshold", 0))
-			var budget: Dictionary = _check_budget_wall(price, gold, mgb, ipt)
+			var budget: Dictionary = _check_budget_wall(price, currency, mgb, ipt)
 			if not bool(budget.get("pass", false)):
 				_log("│ [-] 武器手动但预算不足 → 跳过")
 				return _log_result(item_id, Result.STATE_SKIPPED, "武器手动但预算不足, 按跳过处理: " + String(budget.get("reason", "")))
@@ -202,7 +202,7 @@ static func decide(item_data, rule: Dictionary, context: Dictionary):
 		# 诅咒版本 -> 继续走预算墙
 	_log("│ [6] 诅咒分支: %s" % ("诅咒版" if cursed else "普通版"))
 
-	# Step 7: 预算墙 (箱子 take 不花金币, 跳过预算墙直接进入 Step 8)
+	# Step 7: 预算墙 (箱子 take 不花货币, 跳过预算墙直接进入 Step 8)
 	# price 用 context.item_price (bridge 传入的含通胀真实价, 与容器 shop_item.value 一致),
 	# 缺省回落 base_value.
 	var price: int = int(context.get("item_price", ItemU.get_base_value(item_data)))
@@ -210,17 +210,17 @@ static func decide(item_data, rule: Dictionary, context: Dictionary):
 		var min_gold_balance: int = int(context.get("min_gold_balance", 0))
 		var item_price_threshold: int = int(context.get("item_price_threshold", 0))
 
-		var budget: Dictionary = _check_budget_wall(price, gold, min_gold_balance, item_price_threshold)
+		var budget: Dictionary = _check_budget_wall(price, currency, min_gold_balance, item_price_threshold)
 		if not bool(budget.get("pass", false)):
 			var budget_reason: String = String(budget.get("reason", "预算墙不通过"))
-			_log("│ [7] 预算墙: 不通过 (price=%d, gold=%d, 安全垫=%d)" % [price, gold, min_gold_balance])
+			_log("│ [7] 预算墙: 不通过 (price=%d, currency=%d, 安全垫=%d)" % [price, currency, min_gold_balance])
 			if action == SHOP_LOCK_UNTIL_CURSED:
-				# 诅咒版本但预算不足: 锁定等下一轮 (可能下一轮金币更宽裕)
+				# 诅咒版本但预算不足: 锁定等下一轮 (可能下一轮货币更宽裕)
 				return _log_result(item_id, Result.STATE_LOCKED, "预算不足, 锁定: " + budget_reason)
 			return _log_result(item_id, Result.STATE_SKIPPED, budget_reason)
-		_log("│ [7] 预算墙: 通过 (price=%d, gold=%d, 安全垫=%d)" % [price, gold, min_gold_balance])
+		_log("│ [7] 预算墙: 通过 (price=%d, currency=%d, 安全垫=%d)" % [price, currency, min_gold_balance])
 	else:
-		_log("│ [7] 预算墙: 跳过 (箱子不花金币)")
+		_log("│ [7] 预算墙: 跳过 (箱子不花货币)")
 
 	# Step 8: dispatch -> PURCHASED (商店买入 / 箱子拿取)
 	_log("│ [8] → %s" % ("拿取" if is_crate else "购买"))
@@ -300,12 +300,12 @@ static func _check_threshold_reject(item_data, action: String, context: Dictiona
 
 # 预算墙: 两条件同时成立才通过.
 #   1. item_price_threshold == 0 (不限) 或 price <= item_price_threshold
-#   2. gold - price >= min_gold_balance
+#   2. currency - price >= min_gold_balance
 #
 # 返回 Dictionary {pass: bool, reason: String}
 static func _check_budget_wall(
 		price: int,
-		gold: int,
+		currency: int,
 		min_gold_balance: int,
 		item_price_threshold: int
 	) -> Dictionary:
@@ -315,11 +315,11 @@ static func _check_budget_wall(
 			"pass": false,
 			"reason": "预算墙: 价格超限 (price=%d > threshold=%d)" % [price, item_price_threshold],
 		}
-	# 金币安全垫检查
-	if gold - price < min_gold_balance:
+	# 货币安全垫检查
+	if currency - price < min_gold_balance:
 		return {
 			"pass": false,
-			"reason": "预算墙: 金币不足 (gold=%d, price=%d, 安全垫=%d)" % [gold, price, min_gold_balance],
+			"reason": "预算墙: 货币不足 (currency=%d, price=%d, 安全垫=%d)" % [currency, price, min_gold_balance],
 		}
 	return {"pass": true, "reason": "预算墙通过"}
 

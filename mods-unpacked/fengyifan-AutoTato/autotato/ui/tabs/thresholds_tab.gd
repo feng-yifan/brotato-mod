@@ -308,5 +308,5 @@ func _on_header_pressed(group_key: String) -> void:
 	block["expanded"] = not block["expanded"]
 	block["content_vbox"].visible = block["expanded"]
 	var header: Button = block["header_btn"]
-	var title: String = "主要属性" if group_key == "primary" else "次要属性"
+	var title: String = tr("AUTOTATO_PRIMARY_STATS") if group_key == "primary" else tr("AUTOTATO_SECONDARY_STATS")
 	header.text = ("▼ " if block["expanded"] else "▶ ") + title

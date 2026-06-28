@@ -205,17 +205,17 @@ func _build_static_ui() -> void:
 
 	_filter_shop_opt = OptionButton.new()
 	_filter_shop_opt.rect_min_size = Vector2(140, 0)
-	_filter_shop_opt.add_item(tr("AUTOTATO_SHOP_FILTER_ALL"))
+	_filter_shop_opt.add_item(tr("AUTOTATO_FILTER_ALL"))
 	for pair in SHOP_ACTIONS:
-		_filter_shop_opt.add_item(tr("AUTOTATO_CORNER_SHOP") + " " + tr(pair[1]))
+		_filter_shop_opt.add_item(tr(pair[1]))
 	_filter_shop_opt.connect("item_selected", self, "_on_filter_shop_changed")
 	filter_bar.add_child(_filter_shop_opt)
 
 	_filter_chest_opt = OptionButton.new()
 	_filter_chest_opt.rect_min_size = Vector2(140, 0)
-	_filter_chest_opt.add_item(tr("AUTOTATO_CHEST_FILTER_ALL"))
+	_filter_chest_opt.add_item(tr("AUTOTATO_FILTER_ALL"))
 	for pair in CHEST_ACTIONS:
-		_filter_chest_opt.add_item(tr("AUTOTATO_CORNER_CHEST") + " " + tr(pair[1]))
+		_filter_chest_opt.add_item(tr(pair[1]))
 	_filter_chest_opt.connect("item_selected", self, "_on_filter_chest_changed")
 	filter_bar.add_child(_filter_chest_opt)
 

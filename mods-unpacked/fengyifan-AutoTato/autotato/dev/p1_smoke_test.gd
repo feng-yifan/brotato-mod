@@ -454,7 +454,7 @@ func _test_13_upgrade_disabled_returns_minus_one() -> void:
 # 通用 context 构造器, 默认值与 ItemDecider 接口契约对齐.
 func _make_default_context(gold: int = 100) -> Dictionary:
 	return {
-		"gold": gold,
+		"currency": gold,
 		"player_index": 0,
 		"is_crate": false,
 		"current_danger": 0,
