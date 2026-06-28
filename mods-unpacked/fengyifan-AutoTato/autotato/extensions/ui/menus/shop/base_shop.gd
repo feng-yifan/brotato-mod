@@ -36,6 +36,9 @@ extends "res://ui/menus/shop/base_shop.gd"
 
 
 const LOG_NAME := "fengyifan-AutoTato:ShopHook"
+# 通过 preload 常量调用静态方法, 避免 Godot 3 Workshop ZIP 环境下
+# class_name AT_Bridge 全局注册时机不确定导致 Parse Error.
+const _Bridge = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 
 # 急速模式关闭时, 阶段推进前的延迟 (秒), 让界面渲染可见.
 const _AT_ADVANCE_DELAY := 0.3
@@ -114,7 +117,7 @@ func _autotato_run_all_players(force: bool = false) -> void:
 # 单玩家槽决策 + 执行. 委托给 bridge.run_shop_session (含完整刷新循环).
 # 自动入口和手动按钮 (force=true) 都走同一个 bridge 方法.
 func _autotato_process_shop(player_index: int, force: bool = false) -> void:
-	var bridge = AT_Bridge.get_global()
+	var bridge = _Bridge.get_global()
 	if bridge == null:
 		_log("Bridge 未注册, 跳过商店决策 (玩家=%d)" % player_index)
 		return

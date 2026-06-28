@@ -20,6 +20,9 @@ extends "res://ui/menus/ingame/upgrades_ui.gd"
 # ============================================================================
 
 const LOG_NAME := "fengyifan-AutoTato:UpgradeHook"
+# 通过 preload 常量调用静态方法, 避免 Godot 3 Workshop ZIP 环境下
+# class_name AT_Bridge 全局注册时机不确定导致 Parse Error.
+const _Bridge = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/bridge.gd")
 
 # 急速模式关闭时, 阶段推进前的延迟 (秒), 让界面渲染可见.
 const _AT_ADVANCE_DELAY := 0.3
@@ -55,7 +58,7 @@ func _show_next_player_options() -> bool:
 # ----------------------------------------------------------------------------
 
 func _autotato_process_upgrades() -> void:
-	var bridge = AT_Bridge.get_global()
+	var bridge = _Bridge.get_global()
 	if bridge == null:
 		return
 
@@ -136,7 +139,7 @@ func _at_get_upgrade_reroll_price(player_index: int) -> int:
 
 # fallback: ignore_forbid_on_stuck=true 时选品质最优 (复用原 _autotato_fallback_pick 逻辑)
 func _at_fallback_upgrade(player_index: int) -> bool:
-	var bridge = AT_Bridge.get_global()
+	var bridge = _Bridge.get_global()
 	if bridge == null:
 		return false
 	var upg = bridge.get_upgrade_config()
@@ -169,7 +172,7 @@ func _at_fallback_upgrade(player_index: int) -> bool:
 # 统一 choice 入口: clear guard + deferred choose
 func _autotato_do_choose(pc, visible_uis: Array, idx: int, player_index: int) -> void:
 	pc._autotato_clear_button_guard()
-	var bridge = AT_Bridge.get_global()
+	var bridge = _Bridge.get_global()
 	if bridge != null and bridge.is_turbo_mode():
 		visible_uis[idx].call_deferred("_on_ChooseButton_pressed")
 		_log("已调度升级选择 player=%d idx=%d (急速, 下一帧执行)" % [player_index, idx])
@@ -384,7 +387,7 @@ func _at_ensure_upgrade_auto_button(pc, player_index: int) -> void:
 
 func _at_upgrade_auto_pressed(btn: Button) -> void:
 	var player_index: int = int(btn.get_meta("player_index"))
-	var bridge = AT_Bridge.get_global()
+	var bridge = _Bridge.get_global()
 	if bridge == null:
 		return
 	var pc = _get_player_container(player_index)

@@ -30,9 +30,11 @@ const UpgradeDecider = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/
 const Result         = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/decision_result.gd")
 const Danger         = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/danger_modifier.gd")
 const ItemU          = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/item_data_util.gd")
-# 强制 preload config_manager.gd, 确保 class_name AT_ConfigManager 在 bridge.gd 编译前注册.
-# Godot 3 热重载时编译顺序不保证 class_name 先就绪, 没有这行 preload 会报
+# 强制 preload config_manager.gd, 通过 _ConfigManager 常量直接调用静态方法.
+# 不用 class_name AT_ConfigManager, 因为 Godot 3 在非编辑器环境下 (Workshop ZIP 加载)
+# class_name 的全局注册时机不保证在 bridge.gd 解析前完成, 会导致:
 # "Parse Error: The identifier AT_ConfigManager isn't declared in the current scope".
+# 使用 preload 返回的 Script 资源调用静态方法完全绕开 class_name 查找.
 const _ConfigManager = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/config_manager.gd")
 
 const LOG_NAME       := "fengyifan-AutoTato:Bridge"
@@ -86,7 +88,7 @@ static func new_pristine() -> Reference:
 
 func _init() -> void:
 	var defaults: Dictionary = _load_defaults()
-	var loaded = AT_ConfigManager.load_config(defaults)
+	var loaded = _ConfigManager.load_config(defaults)
 	if loaded == null:
 		_config = defaults
 		_log("Bridge 使用默认 config (load 失败或文件不存在)")
@@ -132,7 +134,7 @@ func _load_defaults() -> Dictionary:
 func _persist() -> void:
 	if _skip_persistence:
 		return
-	if not AT_ConfigManager.save_config(_config):
+	if not _ConfigManager.save_config(_config):
 		_log_warn("Bridge 持久化失败, 本次修改仅在内存")
 
 
