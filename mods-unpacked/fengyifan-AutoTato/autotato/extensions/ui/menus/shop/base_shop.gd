@@ -34,7 +34,6 @@ extends "res://ui/menus/shop/base_shop.gd"
 # (Bridge extends Reference, 引用计数; 保留成员引用会延长生命周期).
 # ============================================================================
 
-
 const LOG_NAME := "fengyifan-AutoTato:ShopHook"
 # 通过 preload 常量调用静态方法, 避免 Godot 3 Workshop ZIP 环境下
 # class_name AT_Bridge 全局注册时机不确定导致 Parse Error.
@@ -45,17 +44,14 @@ const _AT_ADVANCE_DELAY := 0.3
 # pending 推进 timer (至多一个, 新调度前 stop 旧的去重)
 var _at_pending_advance: Timer = null
 
-
 func _ready() -> void:
-	._ready()  # vanilla 父类: 填 _shop_items / 设 UI / 连接所有信号
+	._ready() # vanilla 父类: 填 _shop_items / 设 UI / 连接所有信号
 	_autotato_add_continue_button()
 	_autotato_run_all_players()
 
-
 func _on_RerollButton_pressed(player_index: int) -> void:
-	._on_RerollButton_pressed(player_index)  # vanilla 父类: 扣金币 + reroll + 重填 _shop_items
+	._on_RerollButton_pressed(player_index) # vanilla 父类: 扣金币 + reroll + 重填 _shop_items
 	_autotato_process_shop(player_index)
-
 
 # ----------------------------------------------------------------------------
 # "继续决策" 按钮 — v7
@@ -92,10 +88,8 @@ func _autotato_add_continue_button() -> void:
 	header_row.move_child(btn, title_idx + 1)
 	_log("已添加继续决策按钮 (标题右侧)")
 
-
 func _autotato_continue_pressed() -> void:
 	_autotato_run_all_players(true)
-
 
 # ----------------------------------------------------------------------------
 # AutoTato 流程 (前缀 _autotato_ 防与 vanilla / 其他 mod 撞名)
@@ -113,7 +107,6 @@ func _autotato_run_all_players(force: bool = false) -> void:
 	for player_index in count:
 		_autotato_process_shop(player_index, force)
 
-
 # 单玩家槽决策 + 执行. 委托给 bridge.run_shop_session (含完整刷新循环).
 # 自动入口和手动按钮 (force=true) 都走同一个 bridge 方法.
 func _autotato_process_shop(player_index: int, force: bool = false) -> void:
@@ -127,7 +120,6 @@ func _autotato_process_shop(player_index: int, force: bool = false) -> void:
 	var summary: Dictionary = bridge.run_shop_session(self, player_index, force)
 	if bool(summary.get("should_auto_start", false)):
 		_autotato_maybe_start_next_wave(bridge, player_index)
-
 
 # auto_start_wave 开启时, 按 Go 按钮进入下一关 (vanilla _on_GoButton_pressed).
 # 延迟 emit, 避免在商店 hook 处理过程中同步切场景.
@@ -143,7 +135,6 @@ func _autotato_maybe_start_next_wave(bridge, player_index: int) -> void:
 		go_button.call_deferred("emit_signal", "pressed")
 	else:
 		_at_schedule_advance(_AT_ADVANCE_DELAY, "_at_deferred_go", [player_index])
-
 
 # --- Bridge executor 方法 (bridge.run_shop_session 回调) ---
 
@@ -178,7 +169,6 @@ func _at_reroll_shop(player_index: int) -> void:
 # 读当前刷新价格
 func _at_get_reroll_price(player_index: int) -> int:
 	return int(_reroll_price[player_index]) if player_index < _reroll_price.size() else 0
-
 
 # 把单条决策结果转成对 ShopItem 节点的真实调用.
 # 用 item_id 查找节点 (而非 slot_index): 购买后 _shop_items 数据数组会收缩 (被买项 erase),
@@ -215,7 +205,6 @@ func _autotato_apply_decision(result: Dictionary, player_index: int) -> String:
 		_:
 			return "noop"
 
-
 # 用 item_id 在容器的 ShopItem 节点中查找 (active + item_data.my_id 匹配).
 # 用 get() 动态访问, 兼容节点未类型标注的情况.
 func _at_find_shop_item_by_id(container, item_id: String):
@@ -236,7 +225,6 @@ func _at_find_shop_item_by_id(container, item_id: String):
 			return n
 	return null
 
-
 # 从 ShopItem 节点读取已转换的价格.
 # vanilla shop_item.set_shop_item() 已做 hp_shop 除以 20 等转换,
 # bridge 直接读 node.value 与 vanilla UI 同源, 避免自己算价格.
@@ -254,7 +242,6 @@ func _at_get_item_price(item_id: String, player_index: int) -> int:
 func _at_execute_one(result: Dictionary, player_index: int) -> String:
 	return _autotato_apply_decision(result, player_index)
 
-
 # 清除 shop_items_container 的 0.05s 购买限流 (_is_delay_active + _buy_delay_timer),
 # 让自动模式连续购买不被限流拦住 (与箱子 _autotato_clear_button_guard 同理).
 func _at_clear_buy_delay(container) -> void:
@@ -265,7 +252,6 @@ func _at_clear_buy_delay(container) -> void:
 	var timer = container.get("_buy_delay_timer")
 	if timer != null and timer is Timer and not timer.is_stopped():
 		timer.stop()
-
 
 # ----------------------------------------------------------------------------
 # 急速模式关闭时的延迟推进 (timer 挂本节点, 场景切走时随节点 free, 不回调死对象)
@@ -284,7 +270,6 @@ func _at_schedule_advance(delay: float, method: String, args: Array) -> void:
 	t.start()
 	_at_pending_advance = t
 
-
 # 延迟按 Go (急速关). 重新查找 go_button + is_instance_valid 守卫, 防场景切走后失效.
 func _at_deferred_go(player_index: int) -> void:
 	_at_pending_advance = null
@@ -294,7 +279,6 @@ func _at_deferred_go(player_index: int) -> void:
 	if go_button == null or not is_instance_valid(go_button):
 		return
 	go_button.emit_signal("pressed")
-
 
 func _log(msg: String) -> void:
 	if typeof(ModLoaderLog) != TYPE_NIL:

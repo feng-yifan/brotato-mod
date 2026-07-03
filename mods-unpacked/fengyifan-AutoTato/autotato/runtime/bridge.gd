@@ -24,30 +24,29 @@ class_name AT_Bridge
 #   speed=20, armor=10, dodge=60, hp_regen=10, crit_chance=100, 全部 upper.
 # ============================================================================
 
-
-const ItemDecider    = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/item_decider.gd")
+const ItemDecider = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/item_decider.gd")
 const UpgradeDecider = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/upgrade_decider.gd")
-const Result         = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/decision_result.gd")
-const Danger         = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/danger_modifier.gd")
-const ItemU          = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/item_data_util.gd")
+const Result = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/decisions/decision_result.gd")
+const Danger = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/danger_modifier.gd")
+const ItemU = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/data/item_data_util.gd")
 # 强制 preload config_manager.gd, 通过 _ConfigManager 常量直接调用静态方法.
-# 不用 class_name AT_ConfigManager, 因为 Godot 3 在非编辑器环境下 (Workshop ZIP 加载)
+# 不用 class_name FYF_AT_ConfigManager, 因为 Godot 3 在非编辑器环境下 (Workshop ZIP 加载)
 # class_name 的全局注册时机不保证在 bridge.gd 解析前完成, 会导致:
-# "Parse Error: The identifier AT_ConfigManager isn't declared in the current scope".
+# "Parse Error: The identifier FYF_AT_ConfigManager isn't declared in the current scope".
 # 使用 preload 返回的 Script 资源调用静态方法完全绕开 class_name 查找.
-const _ConfigManager = preload("res://mods-unpacked/fengyifan-AutoTato/autotato/runtime/config_manager.gd")
+const _ConfigManager = preload("res://mods-unpacked/fengyifan-AutoTato/config/config_manager.gd")
 
-const LOG_NAME       := "fengyifan-AutoTato:Bridge"
-const META_KEY       := "fengyifan-AutoTato:Bridge"
+const LOG_NAME := "fengyifan-AutoTato:Bridge"
+const META_KEY := "fengyifan-AutoTato:Bridge"
 const SCHEMA_VERSION := 7
 
 # v7: 阈值纯化 — 只保留 mode+value, per-context action 移到各上下文
 const DEFAULT_THRESHOLDS := {
-	"stat_speed":           {"mode": "upper", "value": 20},
-	"stat_armor":           {"mode": "upper", "value": 10},
-	"stat_dodge":           {"mode": "upper", "value": 60},
+	"stat_speed": {"mode": "upper", "value": 20},
+	"stat_armor": {"mode": "upper", "value": 10},
+	"stat_dodge": {"mode": "upper", "value": 60},
 	"stat_hp_regeneration": {"mode": "upper", "value": 10},
-	"stat_crit_chance":     {"mode": "upper", "value": 100},
+	"stat_crit_chance": {"mode": "upper", "value": 100},
 }
 
 # 白名单
@@ -57,7 +56,6 @@ const VALID_GENERAL_KEYS := ["min_gold_balance", "item_price_threshold", "reroll
 const VALID_UPGRADE_CONFIG_KEYS := ["min_tier", "quality_first", "ignore_forbid_on_stuck", "respect_thresholds"]
 const VALID_WEAPON_CONFIG_KEYS := ["min_tier"]
 const VALID_THRESHOLD_FIELDS := ["mode", "value"]
-
 
 # ============================================================================
 # 成员
@@ -70,7 +68,6 @@ var _skip_persistence: bool = false
 var _decision_count: int = 0
 var _decision_wave: int = -1
 
-
 # ============================================================================
 # 静态工厂
 # ============================================================================
@@ -80,7 +77,6 @@ static func new_pristine() -> Reference:
 	b._skip_persistence = true
 	b._config = b._load_defaults()
 	return b
-
 
 # ============================================================================
 # 生命周期
@@ -96,7 +92,6 @@ func _init() -> void:
 		_config = loaded
 		_log("Bridge 已加载 config (顶层 keys=%d)" % _config.size())
 	_log("Bridge 已初始化, version=%d, %d 个预设阈值" % [SCHEMA_VERSION, _config["thresholds"].size()])
-
 
 func _load_defaults() -> Dictionary:
 	return {
@@ -122,7 +117,7 @@ func _load_defaults() -> Dictionary:
 		},
 		"upgrade": {
 			"respect_thresholds": true,
-			"min_tier": -1,
+			"min_tier": - 1,
 			"quality_first": false,
 			"ignore_forbid_on_stuck": true,
 			"forbid_stats": [],
@@ -130,13 +125,11 @@ func _load_defaults() -> Dictionary:
 		},
 	}
 
-
 func _persist() -> void:
 	if _skip_persistence:
 		return
 	if not _ConfigManager.save_config(_config):
 		_log_warn("Bridge 持久化失败, 本次修改仅在内存")
-
 
 # ============================================================================
 # 全局注册
@@ -147,10 +140,8 @@ static func get_global() -> Reference:
 		return null
 	return Engine.get_meta(META_KEY)
 
-
 static func register_global(instance: Reference) -> void:
 	Engine.set_meta(META_KEY, instance)
-
 
 # ============================================================================
 # 公开读取 API (全部返回深拷贝)
@@ -159,34 +150,26 @@ static func register_global(instance: Reference) -> void:
 func get_config() -> Dictionary:
 	return _config.duplicate(true)
 
-
 func get_thresholds() -> Dictionary:
 	return (_config.get("thresholds", {}) as Dictionary).duplicate(true)
-
 
 func get_item_rules() -> Dictionary:
 	return (_config.get("item_rules", {}) as Dictionary).duplicate(true)
 
-
 func get_weapon_rules() -> Dictionary:
 	return (_config.get("weapon_rules", {}) as Dictionary).duplicate(true)
-
 
 func get_weapon_category_rules() -> Dictionary:
 	return (_config.get("weapon_category_rules", {}) as Dictionary).duplicate(true)
 
-
 func get_weapon_config() -> Dictionary:
 	return (_config.get("weapon", {}) as Dictionary).duplicate(true)
-
 
 func get_general() -> Dictionary:
 	return (_config.get("general", {}) as Dictionary).duplicate(true)
 
-
 func get_upgrade_config() -> Dictionary:
 	return (_config.get("upgrade", {}) as Dictionary).duplicate(true)
-
 
 func get_item_rule(item_id: String) -> Dictionary:
 	var rules: Dictionary = _config.get("item_rules", {})
@@ -195,14 +178,12 @@ func get_item_rule(item_id: String) -> Dictionary:
 		return {}
 	return (rule as Dictionary).duplicate()
 
-
 func get_weapon_rule(weapon_id: String) -> String:
 	var rules: Dictionary = _config.get("weapon_rules", {})
 	var r = rules.get(weapon_id, null)
 	if typeof(r) == TYPE_STRING and r != "":
 		return r
 	return "follow_set_rule"
-
 
 func get_weapon_category_rule(set_id: String) -> String:
 	var rules: Dictionary = _config.get("weapon_category_rules", {})
@@ -211,11 +192,9 @@ func get_weapon_category_rule(set_id: String) -> String:
 		return r
 	return "manual"
 
-
 func get_weapon_min_tier() -> int:
 	var w: Dictionary = _config.get("weapon", {})
 	return int(w.get("min_tier", 0))
-
 
 func get_threshold(stat_key: String) -> Dictionary:
 	var ths: Dictionary = _config.get("thresholds", {})
@@ -224,20 +203,16 @@ func get_threshold(stat_key: String) -> Dictionary:
 		return {}
 	return (t as Dictionary).duplicate()
 
-
 func is_shop_automation_enabled() -> bool:
 	return bool(_config.get("shop_automation_enabled", false))
 
-
 func is_upgrade_automation_enabled() -> bool:
 	return bool(_config.get("upgrade_automation_enabled", false))
-
 
 # 急速模式: 开 = 推进动作 call_deferred 瞬间执行 + 全屏 Overlay 计时;
 # 关 = 推进动作 0.3s Timer 延迟, 让界面渲染可见. hook 层推进点读此值决定分支.
 func is_turbo_mode() -> bool:
 	return bool(_config.get("general", {}).get("turbo_mode", false))
-
 
 # ============================================================================
 # 公开写入 API
@@ -255,12 +230,10 @@ func set_item_rule(item_id: String, rule: Dictionary) -> void:
 	_config["item_rules"][item_id] = rule.duplicate()
 	_persist()
 
-
 func remove_item_rule(item_id: String) -> void:
 	if _config.has("item_rules"):
 		_config["item_rules"].erase(item_id)
 	_persist()
-
 
 func set_weapon_rule(weapon_id: String, action: String) -> void:
 	if weapon_id == null or weapon_id == "":
@@ -270,12 +243,10 @@ func set_weapon_rule(weapon_id: String, action: String) -> void:
 	_config["weapon_rules"][weapon_id] = action
 	_persist()
 
-
 func remove_weapon_rule(weapon_id: String) -> void:
 	if _config.has("weapon_rules"):
 		_config["weapon_rules"].erase(weapon_id)
 	_persist()
-
 
 func set_weapon_category_rule(set_id: String, action: String) -> void:
 	if set_id == null or set_id == "":
@@ -285,7 +256,6 @@ func set_weapon_category_rule(set_id: String, action: String) -> void:
 	_config["weapon_category_rules"][set_id] = action
 	_persist()
 
-
 func set_weapon_config(key: String, value) -> void:
 	if not VALID_WEAPON_CONFIG_KEYS.has(key):
 		_log_warn("set_weapon_config 跳过: 未知 key '%s'" % key)
@@ -294,7 +264,6 @@ func set_weapon_config(key: String, value) -> void:
 		_config["weapon"] = {}
 	_config["weapon"][key] = value
 	_persist()
-
 
 # 设置阈值 mode + value, 同时保留已有 *_action / min_tier 字段
 func set_threshold(stat_key: String, mode: String, value: int) -> void:
@@ -306,14 +275,12 @@ func set_threshold(stat_key: String, mode: String, value: int) -> void:
 	_config["thresholds"][stat_key] = {"mode": mode, "value": value}
 	_persist()
 
-
 # 批量设置 upgrade forbid_stats 数组
 func set_upgrade_forbid_stats(value: Array) -> void:
 	if not _config.has("upgrade"):
 		_config["upgrade"] = {}
 	_config["upgrade"]["forbid_stats"] = value.duplicate()
 	_persist()
-
 
 func get_upgrade_forbid_stats() -> Array:
 	var upg = _config.get("upgrade", {})
@@ -322,19 +289,16 @@ func get_upgrade_forbid_stats() -> Array:
 		return arr.duplicate()
 	return []
 
-
 func set_upgrade_respect_thresholds(val: bool) -> void:
 	if not _config.has("upgrade"):
 		_config["upgrade"] = {}
 	_config["upgrade"]["respect_thresholds"] = val
 	_persist()
 
-
 func remove_threshold(stat_key: String) -> void:
 	if _config.has("thresholds"):
 		_config["thresholds"].erase(stat_key)
 	_persist()
-
 
 func set_general(key: String, value) -> void:
 	if not VALID_GENERAL_KEYS.has(key):
@@ -345,7 +309,6 @@ func set_general(key: String, value) -> void:
 	_config["general"][key] = value
 	_persist()
 
-
 func set_upgrade_config(key: String, value) -> void:
 	if not VALID_UPGRADE_CONFIG_KEYS.has(key):
 		_log_warn("set_upgrade_config 跳过: 未知 key '%s'" % key)
@@ -355,7 +318,6 @@ func set_upgrade_config(key: String, value) -> void:
 	_config["upgrade"][key] = value
 	_persist()
 
-
 # 批量设置 upgrade stat_priority 数组
 func set_upgrade_priority(value: Array) -> void:
 	if not _config.has("upgrade"):
@@ -363,23 +325,19 @@ func set_upgrade_priority(value: Array) -> void:
 	_config["upgrade"]["stat_priority"] = value.duplicate()
 	_persist()
 
-
 func set_shop_automation_enabled(val: bool) -> void:
 	_config["shop_automation_enabled"] = val
 	_persist()
 
-
 func set_upgrade_automation_enabled(val: bool) -> void:
 	_config["upgrade_automation_enabled"] = val
 	_persist()
-
 
 # 将配置重置为默认值并持久化. 由 ConfigPanel 的 Reset 按钮调用.
 func reset_to_defaults() -> void:
 	_config = _load_defaults()
 	_persist()
 	_log("配置已重置为默认值 (version=%d)" % SCHEMA_VERSION)
-
 
 # ============================================================================
 # 决策入口
@@ -396,7 +354,6 @@ func decide_shop_item(item_data, currency: int, price: int, player_index: int = 
 	ctx["item_price"] = price
 	return ItemDecider.decide(item_data, rule, ctx)
 
-
 func decide_chest_item(item_data, player_index: int = 0, force: bool = false):
 	var item_id := _safe_item_id(item_data)
 	# force=true 时绕过自动化开关 (箱子卡片上的 AutoTato 按钮手动触发用)
@@ -405,7 +362,6 @@ func decide_chest_item(item_data, player_index: int = 0, force: bool = false):
 	var rule := get_item_rule(item_id)
 	var ctx := _build_item_context(0, true, player_index)
 	return ItemDecider.decide(item_data, rule, ctx)
-
 
 # 决策会话 — 内部循环 + 停止条件 + executor 回调
 # ============================================================================
@@ -470,16 +426,15 @@ func _decide_shop_round(executor, player_index: int, force: bool) -> Array:
 	for r in results:
 		match r.get("terminal_state", Result.STATE_SKIPPED):
 			Result.STATE_PURCHASED: purchased += 1
-			Result.STATE_LOCKED:    locked += 1
-			Result.STATE_SKIPPED:   skipped += 1
-			Result.STATE_MANUAL:    manual_count += 1
+			Result.STATE_LOCKED: locked += 1
+			Result.STATE_SKIPPED: skipped += 1
+			Result.STATE_MANUAL: manual_count += 1
 
 	_log("──────────────────────────────────────────────────────")
 	_log("  商店汇总: 购买=%d 锁定=%d 跳过=%d 手动=%d" % [purchased, locked, skipped, manual_count])
 	_log("══════════════════════════════════════════════════════")
 
 	return results
-
 
 # 完整商店决策会话: 决策 + 执行 + 刷新循环 (无限循环, 仅靠停止条件终止).
 # executor 是 hook 节点 (base_shop), 需暴露 _at_* executor 方法.
@@ -541,7 +496,6 @@ func run_shop_session(executor, player_index: int, force: bool = false) -> Dicti
 		_log("商店会话: %d 项跳过, 自动刷新 (第 %d 轮)" % [round_skips, round_num])
 		executor._at_reroll_shop(player_index)
 
-
 	var summary := {
 		"purchases": total_purchases,
 		"locks": total_locks,
@@ -552,7 +506,6 @@ func run_shop_session(executor, player_index: int, force: bool = false) -> Dicti
 	}
 	_log("商店会话结束: 购买=%d 锁定=%d 跳过=%d 手动=%d 轮数=%d" % [total_purchases, total_locks, total_skips, total_manuals, round_num])
 	return summary
-
 
 # 判断商店是否可以刷新: 金币够、未全锁、价格未超上限.
 func _can_shop_reroll(executor, player_index: int) -> bool:
@@ -568,7 +521,6 @@ func _can_shop_reroll(executor, player_index: int) -> bool:
 	if budget > 0 and price > budget:
 		return false
 	return true
-
 
 # 完整升级决策会话: 决策 + reroll 循环 (无限循环, 仅靠停止条件).
 func run_upgrade_session(executor, player_index: int, force: bool = false) -> Dictionary:
@@ -606,7 +558,6 @@ func run_upgrade_session(executor, player_index: int, force: bool = false) -> Di
 	var chosen: bool = executor._at_fallback_upgrade(player_index)
 	return {"chosen": chosen, "rounds": round_num}
 
-
 func _read_player_gold(player_index: int) -> int:
 	# gold 存在 player_data.gold 上 (run_data.gd:287 等), RunData 本身没有 gold 属性,
 	# 早期用 RunData.get("gold") 当数组读会返回 null → 金币=0. 改用 vanilla 的 getter.
@@ -615,7 +566,6 @@ func _read_player_gold(player_index: int) -> int:
 	if not RunData.has_method("get_player_gold"):
 		return 0
 	return int(RunData.get_player_gold(player_index))
-
 
 # 读取玩家当前货币余额 (hp_shop 角色返回 max_hp, 普通角色返回 gold).
 # 使用 vanilla 已实现的 get_player_currency() 抽象, 不做任何自行换算.
@@ -628,7 +578,6 @@ func _read_player_currency(player_index: int) -> int:
 		return int(RunData.get_player_gold(player_index))
 	return 0
 
-
 func decide_upgrade(option_list: Array, player_index: int = 0, force: bool = false) -> int:
 	if not force and not is_upgrade_automation_enabled():
 		return UpgradeDecider.NO_PICK
@@ -636,7 +585,6 @@ func decide_upgrade(option_list: Array, player_index: int = 0, force: bool = fal
 	upg_cfg["enabled"] = true
 	var ctx := _build_upgrade_context(player_index)
 	return UpgradeDecider.decide(option_list, upg_cfg, ctx)
-
 
 # ============================================================================
 # 私有 helpers
@@ -662,7 +610,6 @@ func _build_item_context(currency: int, is_crate: bool, player_index: int) -> Di
 		"chest_respect_thresholds": bool(general.get("chest_respect_thresholds", false)),
 	}
 
-
 func _build_upgrade_context(player_index: int) -> Dictionary:
 	var upg: Dictionary = _config.get("upgrade", {})
 	return {
@@ -676,20 +623,17 @@ func _build_upgrade_context(player_index: int) -> Dictionary:
 		"respect_thresholds": bool(upg.get("respect_thresholds", true)),
 	}
 
-
 func _safe_item_id(item_data) -> String:
 	if item_data == null:
 		return ""
 	var id := ItemU.get_id(item_data)
 	return id if typeof(id) == TYPE_STRING else ""
 
-
 func _current_wave() -> int:
 	if typeof(RunData) == TYPE_OBJECT:
 		var w = RunData.get("current_wave")
 		return int(w) if w != null else 0
 	return 0
-
 
 # 每波次从 1 递增的决策序号 (跨 shop/chest/upgrade 共享, 波次切换自动重置)
 func _next_decision_seq() -> int:
@@ -700,11 +644,9 @@ func _next_decision_seq() -> int:
 	_decision_count += 1
 	return _decision_count
 
-
 func _log(msg: String) -> void:
 	if typeof(ModLoaderLog) != TYPE_NIL:
 		ModLoaderLog.info(msg, LOG_NAME)
-
 
 func _log_warn(msg: String) -> void:
 	if typeof(ModLoaderLog) != TYPE_NIL:

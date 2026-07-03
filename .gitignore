@@ -34,6 +34,8 @@
 # （mods-unpacked 内的 mod 文件夹要全部纳入版本管理）
 mods-unpacked/*/translations/.import/
 mods-unpacked/*/resources/.import/
+# 允许同步 vscode 配置
+!/.vscode/
 
 # Godot 编辑器临时文件
 .godot/

@@ -23,7 +23,7 @@ class_name AT_DecisionResult
 #    reference 报错), 必须直接写 STATE_PURCHASED.
 #
 # 4. 工厂 make() 不校验 terminal_state, 由调用方保证传入 STATE_* 之一;
-#    is_valid_state() 供烟雾脚本 / 单元测试断言使用.
+#    is_valid_state() 供单元测试与外部断言使用.
 # ============================================================================
 
 # 商店扣金币购入 / 箱子拿取
