@@ -1,7 +1,5 @@
 # CLAUDE.md — brotato-mod 项目 Claude Code 指南
 
-必须使用 use-memory 技能。
-
 ## 1. 项目身份
 
 | 项目 | brotato-mod |
