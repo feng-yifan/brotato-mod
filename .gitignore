@@ -28,7 +28,8 @@
 # 第 3 步：在已放行的目录内，二次过滤
 # （.claude 内除 memory/ 和 settings.json 外其余为会话临时文件，不入 git）
 /.claude/*
-!/.claude/memory/
+!/.claude/chm-memory/
+!/.claude/chm-memory-settings.json
 !/.claude/settings.json
 !/.claude/skills/
 # （mods-unpacked 内的 mod 文件夹要全部纳入版本管理）
