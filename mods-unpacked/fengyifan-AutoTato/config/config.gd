@@ -33,7 +33,7 @@ const VALID_UPGRADE_CONFIG_KEYS := ["min_tier", "quality_first", "ignore_forbid_
 const VALID_WEAPON_CONFIG_KEYS := ["min_tier"]
 const VALID_THRESHOLD_MODES := ["upper", "lower", "unlimited"]
 const VALID_SHOP_ACTIONS := ["manual", "reject", "lock_until_cursed", "cursed_only", "get"]
-const VALID_CHEST_ACTIONS := ["manual", "take", "skip"]
+const VALID_CHEST_ACTIONS := ["manual", "take", "cursed_only", "reject"]
 # item 规则缺失/字段非法时返回的默认 rule。
 # chest_action 当前无外层消费者,作为未来 chest 重构块的对称预留。
 const DEFAULT_ITEM_RULE := {
