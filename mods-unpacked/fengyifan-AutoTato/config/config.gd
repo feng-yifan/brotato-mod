@@ -229,6 +229,10 @@ func get_threshold(stat_key: String) -> Dictionary:
 			result["value"] = v
 	return result
 
+# 批量返回所有阈值 (供 thresholds_tab 一次性渲染). 深拷贝避免外部修改.
+func get_thresholds() -> Dictionary:
+	return _duplicate_dict(_config.get("thresholds", {}))
+
 func is_shop_automation_enabled() -> bool:
 	return bool(_config["shop_automation_enabled"])
 

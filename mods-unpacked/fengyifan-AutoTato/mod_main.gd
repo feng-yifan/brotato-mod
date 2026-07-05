@@ -20,7 +20,11 @@ func install_script_extensions() -> void:
 	ModLoaderMod.install_script_extension(
 		"res://mods-unpacked/fengyifan-AutoTato/extensions/shop_item.gd"
 	)
-	# 升级面板、暂停菜单、升级容器等旧扩展暂不迁移，
+	# ESC 暂停菜单: 注入 AutoTato 控制面板入口按钮
+	ModLoaderMod.install_script_extension(
+		"res://mods-unpacked/fengyifan-AutoTato/extensions/ingame_main_menu.gd"
+	)
+	# 升级面板、升级容器等旧扩展暂不迁移,
 	# 避免旧运行路径污染新商店链路
 
 func add_translations() -> void:
