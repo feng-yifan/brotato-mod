@@ -91,8 +91,18 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# 弹窗打开时: ESC / 手柄 B 关闭弹窗
+	# 弹窗打开时
 	if _at_popup and _at_popup.visible:
+		# PopupMenu 菜单项循环导航（第一项按上跳到最后一项, 最后一项按下跳到第一项）
+		# 复用 FocusEmulator._handle_popup_menu_input 的模运算模式 (focus_emulator.gd:206-214)
+		# Godot 3 原生 PopupMenu 默认不循环, 需手动接管
+		var modal = get_viewport().get_modal_stack_top()
+		if modal is PopupMenu and _at_popup.is_a_parent_of(modal):
+			if _at_handle_popup_menu_input(event, modal as PopupMenu):
+				get_tree().set_input_as_handled()
+				return
+
+		# ESC / 手柄 B 关闭弹窗
 		if event.is_action_released("ui_cancel"):
 			# OptionButton 下拉 (PopupMenu) 打开时不拦截, 让其自然关闭
 			if _at_has_visible_popup_menu():
@@ -854,6 +864,25 @@ func _at_set_option(opt: OptionButton, value: String, actions: Array) -> void:
 
 
 # 检测弹窗内是否有可见的 PopupMenu (OptionButton 下拉) — 守卫 ESC 关闭
+# PopupMenu 菜单项循环导航 — 复用 FocusEmulator._handle_popup_menu_input 的模运算模式
+# (focus_emulator.gd:206-214)
+# Godot 3 原生 PopupMenu 在第一项按"上"不循环, 这里用模运算实现首尾循环
+# allow_echo=true 与 FocusEmulator 一致, 按住方向键持续循环
+func _at_handle_popup_menu_input(event: InputEvent, popup: PopupMenu) -> bool:
+	var item_count := popup.get_item_count()
+	if item_count <= 0:
+		return false
+	if event.is_action_pressed("ui_up", true):
+		var new_idx := (popup.get_current_index() - 1 + item_count) % item_count
+		popup.set_current_index(new_idx)
+		return true
+	elif event.is_action_pressed("ui_down", true):
+		var new_idx := (popup.get_current_index() + 1) % item_count
+		popup.set_current_index(new_idx)
+		return true
+	return false
+
+
 func _at_has_visible_popup_menu() -> bool:
 	if _at_popup == null:
 		return false
