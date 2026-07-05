@@ -42,11 +42,6 @@ func _ready() -> void:
 	_at_add_continue_button()
 	call_deferred("_at_trigger_auto_shop_decision_all_players")
 
-# 拦截 vanilla 刷新按钮：先执行原刷新逻辑，再尝试自动决策
-func _on_RerollButton_pressed(player_index: int) -> void:
-	._on_RerollButton_pressed(player_index)
-	call_deferred("_at_trigger_auto_shop_decision", player_index)
-
 # ============================================================================
 # AutoTato 按钮
 # ============================================================================
@@ -66,9 +61,9 @@ func _at_add_continue_button() -> void:
 
 	var btn := Button.new()
 	btn.name = "AutoTatoContinueBtn"
-	btn.text = tr("AUTOTATO_AUTOMATION")
+	btn.text = tr("AUTOTATO_AUTOMATION") + " & " + tr("REROLL")
 	btn.focus_mode = Control.FOCUS_ALL
-	btn.rect_min_size = Vector2(110, 40)
+	btn.rect_min_size = Vector2(160, 40)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	btn.connect("pressed", self, "_at_on_continue_pressed")

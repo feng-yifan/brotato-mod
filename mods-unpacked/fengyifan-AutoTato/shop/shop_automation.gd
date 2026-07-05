@@ -58,9 +58,24 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 	total_manuals += int(cur_round.get("manuals", 0))
 	session_has_manual = bool(cur_round.get("has_manual", false))
 
-	# 自动化未开启 → 仅一轮, 不进入 reroll 循环
+	# 自动化未开启 → 仅一轮 + 手动单次刷新, 不进入循环
+	# 手动入口(用户按 AutoTato 按钮)绕过了 trigger 层开关, 走到这里。
+	# 护栏: 所有未购买商品都余额不足时跳过 reroll(避免浪费金币刷出仍买不起的商品)。
+	# 复用 _can_reroll 判断(金币/单次价格上限/锁未满), 能刷新则刷新一次后结束。
+	# 刷新后不再跑决策 — 想处理新商品需再按一次按钮(手动节奏)。
 	if not auto_enabled:
-		_Logger.info("商店自动化未开启: 执行一轮后返回 玩家=%d" % player_index, _LOG_NAME)
+		if _all_unpurchased_insufficient(cur_round):
+			_Logger.info("手动未刷新: 所有未购买商品都余额不足 玩家=%d" % player_index, _LOG_NAME)
+		else:
+			var reroll_check := _can_reroll(ui_adapter, player_index, reroll_spent)
+			if bool(reroll_check.get("ok", false)):
+				if ui_adapter.at_reroll_shop(player_index):
+					reroll_spent += int(reroll_check.get("price", 0))
+					_Logger.info("手动单次刷新 玩家=%d 代价=%d" % [player_index, reroll_spent], _LOG_NAME)
+					if not turbo:
+						ui_adapter.at_wait_before_next_decision()
+			else:
+				_Logger.info("手动未刷新: %s 玩家=%d" % [str(reroll_check.get("reason", "")), player_index], _LOG_NAME)
 		return {
 			"purchases": total_purchases,
 			"locks": total_locks,
@@ -96,7 +111,10 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 			break
 
 		reroll_spent += int(reroll_check.get("price", 0))
-		_Logger.info("自动刷新 (第 %d 轮) 累计代价=%d" % [round_num, reroll_spent], _LOG_NAME)
+		_Logger.info("自动刷新 (第 %d 轮) 代价=%d 累计=%d gold=%d budget=%d" % [
+			round_num, int(reroll_check.get("price", 0)), reroll_spent,
+			_Data.get_player_gold(player_index), general["reroll_budget"]
+		], _LOG_NAME)
 
 		if not turbo:
 			ui_adapter.at_wait_before_next_decision()
@@ -201,6 +219,10 @@ static func _run_one_round(ui_adapter, player_index: int, turbo: bool, delay: fl
 		if performed_action and not turbo and delay > 0.0:
 			ui_adapter.at_wait_before_next_decision()
 
+	_Logger.info("轮结束 entries=%d | 买=%d 锁=%d 跳=%d 手=%d | has_manual=%s has_locked=%s has_skipped=%s" % [
+		entries.size(), rd["purchases"], rd["locks"], rd["skips"], rd["manuals"],
+		rd["has_manual"], rd["has_locked"], rd["has_skipped"]
+	], _LOG_NAME)
 	return rd
 
 
@@ -251,13 +273,12 @@ static func _can_reroll(ui_adapter, player_index: int, reroll_spent: int) -> Dic
 	if gold < price:
 		return {"ok": false, "price": price, "reason": "金币不足 gold=%d price=%d" % [gold, price]}
 
+	# reroll_budget = 0 表示不限制(无限预算),只受 gold >= price 约束。
+	# > 0 时作为单次 reroll 价格上限:本次 reroll 价格超过 budget 则拒绝。
+	# (与 AUTOTATO_REROLL_BUDGET_DESC 文案 "单次刷新价格的上限, 超过此值不自动刷新 (0=不限)" 一致)
 	var budget: int = general["reroll_budget"]
-	if budget <= 0:
-		return {"ok": false, "price": price, "reason": "reroll_budget=0"}
-
-	var total_spent: int = reroll_spent + price
-	if total_spent > budget:
-		return {"ok": false, "price": price, "reason": "超出 reroll_budget spent=%d budget=%d" % [total_spent, budget]}
+	if budget > 0 and price > budget:
+		return {"ok": false, "price": price, "reason": "单次价格超 reroll_budget price=%d budget=%d" % [price, budget]}
 
 	# 锁定项上限
 	if typeof(RunData) == TYPE_OBJECT and typeof(ItemService) == TYPE_OBJECT:

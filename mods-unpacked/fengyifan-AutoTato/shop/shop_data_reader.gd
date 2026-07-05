@@ -187,15 +187,30 @@ static func is_at_limit(item_data, player_index: int) -> bool:
 	if typeof(RunData) != TYPE_OBJECT:
 		return false
 
-	# max_nb: 单个物品最大持有数 (ItemParentData.max_nb)
+	# 武器没有 max_nb 概念(WeaponData 不继承 ItemData,无该字段)。
+	# 武器槽由 get_player_weapons 管理,不受物品限购约束。
+	if item_data is WeaponData:
+		return false
+
+	# 优先用 vanilla API:get_remaining_max_nb_item 返回"剩余可购数",
+	# 内部已处理 max_nb == -1 (无限制) 的情况。<= 0 即到上限。
+	# 只对 ItemData 有效(签名要求 ItemData)。
+	if item_data is ItemData and RunData.has_method("get_remaining_max_nb_item"):
+		var remaining: int = RunData.get_remaining_max_nb_item(item_data, player_index)
+		return remaining <= 0
+
+	# 兜底:非 ItemData / vanilla API 不可用时,手动解析 max_nb(兼容 Dictionary 形态)。
+	# max_nb 字段在 ItemData 上,不在 ItemParentData 基类;WeaponData 已在上面短路。
 	var max_nb := 0
 	if typeof(item_data) == TYPE_DICTIONARY:
 		var mnb = item_data.get("max_nb", 0)
 		max_nb = int(mnb) if mnb != null else 0
 	else:
-		max_nb = int(item_data.get("max_nb"))
+		# Resource.get 在属性不存在时返回 null;int(null) 会崩溃,必须守卫。
+		var mnb_raw = item_data.get("max_nb")
+		max_nb = int(mnb_raw) if mnb_raw != null else 0
 	if max_nb <= 0:
-		return false
+		return false  # 0 / -1 都视为无限制
 
 	var item_id := get_item_id(item_data)
 	if item_id == "":
