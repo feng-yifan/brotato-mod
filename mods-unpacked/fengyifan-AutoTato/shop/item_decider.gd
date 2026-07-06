@@ -26,12 +26,15 @@ const _LOG_NAME := "ItemDecider"
 #
 # 两阶段判断结构:
 #   阶段 1 — 类型特定规则(差异大,分武器/物品):
-#     武器 → _resolve_weapon_action(min_tier → weapon_rules → weapon_category_rules)
-#     物品 → item_rules.shop_action(manual/reject/lock_until_cursed/cursed_only/get)
-#     否定意图(skip/manual)直接返回,不进阶段 2。
-#   阶段 2 — 商店通用规则(对所有物品/武器生效):
+#     武器 → _resolve_weapon_action(min_tier 硬门槛 → cfg.get_weapon_action)
+#            规则解析全部交给 config,decider 不做回退/空值判断。
+#            武器没有 get 规则,只返回 manual/skip — 武器不被自动购买。
+#     物品 → cfg.get_item_rule(item_id).shop_action(manual/reject/lock_until_cursed/cursed_only/get)
+#            未配置物品由 config 回退默认 manual。
+#     否定/终止意图(skip/manual/lock)在阶段 1 直接返回,不进阶段 2。
+#   阶段 2 — 商店通用规则(仅对物品的肯定意图 get 生效):
 #     限购 → 阈值 gate → 预算墙 → purchase。
-#     仅对阶段 1 的"肯定意图"(get / cursed 走 get / 武器通过 min_tier)执行。
+#     武器永不进阶段 2(无 get 意图)。
 static func decide_shop_entry(entry: Dictionary, player_index: int) -> Dictionary:
 	var shop_item = entry.get("shop_item")
 	var item_data = entry.get("item_data")
@@ -46,10 +49,6 @@ static func decide_shop_entry(entry: Dictionary, player_index: int) -> Dictionar
 		return _DecisionResult.skip()
 
 	var cfg = _Config.get_instance()
-	if cfg == null:
-		_Logger.info("决策 %s: manual (config 未初始化)" % item_id, _LOG_NAME)
-		return _DecisionResult.manual()
-
 	var price: int = _Data.get_item_price(shop_item)
 	var currency: int = _Data.get_player_currency(player_index)
 	var general: Dictionary = cfg.get_general()
@@ -73,6 +72,13 @@ static func decide_shop_entry(entry: Dictionary, player_index: int) -> Dictionar
 	var phase1_action: String = phase1[0]
 	var phase1_reason: String = phase1[1]
 
+	# 统一检查:manual 且商品已被手动锁定 → 转 skip。
+	# 用户手动锁定商品(防 reroll 刷掉)不应触发"出现 manual"停止条件,
+	# 也不应占用 manual 统计计数。锁定项不参与 reroll,不会被刷掉。
+	if phase1_action == "manual" and _Data.is_shop_item_locked(shop_item):
+		phase1_action = "skip"
+		phase1_reason += " (已锁定, 转跳过)"
+
 	# 阶段 1 否定/终止意图直接返回,不进阶段 2。
 	# lock 也是终止意图(lock_until_cursed 可锁时),不走阶段 2。
 	match phase1_action:
@@ -88,9 +94,6 @@ static func decide_shop_entry(entry: Dictionary, player_index: int) -> Dictionar
 		"get":
 			# 继续进阶段 2
 			pass
-		_:
-			_Logger.info("决策 %s: manual (未知 phase1_action=%s)" % [item_id, phase1_action], _LOG_NAME)
-			return _DecisionResult.manual()
 
 	# ─── 阶段 2: 商店通用规则(对所有肯定意图生效) ───
 
@@ -129,6 +132,8 @@ static func decide_shop_entry(entry: Dictionary, player_index: int) -> Dictionar
 # lock_until_cursed + 非 cursed + 可锁 → "lock"(锁定动作,也是终止意图)。
 static func _resolve_item_action(shop_action: String, item_data, shop_item, item_id: String) -> Array:
 	# 返回 [action, reason]
+	# config.get_item_rule 保证 shop_action 是合法值之一,默认分支仅满足 Godot 3
+	# match 语法要求(非 void 函数所有路径必须返回值),正常不会走到。
 	match shop_action:
 		"manual":
 			return ["manual", "shop_action=manual, 含未配置的默认规则"]
@@ -149,27 +154,36 @@ static func _resolve_item_action(shop_action: String, item_data, shop_item, item
 				return ["skip", "cursed_only, 非 cursed"]
 			return ["get", "cursed_only, 是 cursed, 走 get"]
 		_:
-			return ["manual", "未知 shop_action=%s" % shop_action]
+			# 语法兜底:config 保证不会走到,违约时报错并返回 skip
+			_Logger.error("未知 shop_action=%s (config 违约)" % shop_action, _LOG_NAME)
+			return ["skip", "未知 shop_action=%s (config 违约)" % shop_action]
 
 
-# 武器规则解析:三道闸,任一否定即终止。
-#   1. min_tier 先判(硬门槛,优先于 weapon_rules)
-#   2. weapon_rules[weapon_id] → manual/skip/follow_set_rule
-#   3. weapon_category_rules[sets[i].my_id] → 任一 skip 则 skip(保守)
-# 默认 → get(进阶段 2)
+# 武器规则解析:min_tier 硬门槛 + 自身规则 + 类别规则,判断链在 decider。
+# config 只返回配置值(未配置给默认:自身规则→follow_set_rule,类别规则→manual),不做判断。
 #
+# 判断链:
+#   1. min_tier 硬门槛(优先于规则)
+#   2. 武器自身规则(cfg.get_weapon_rule):
+#      - manual → 手动
+#      - skip   → 跳过
+#      - follow_set_rule → 查类别规则
+#   3. 类别规则(遍历所有 set,cfg.get_weapon_category_rule):
+#      任一 manual → 手动;任一 skip → 跳过;否则默认手动
+# 武器没有 get 规则,永不返回 get — 武器不被自动购买。
 # 注意:武器用 weapon_id(WeaponData.weapon_id),不是 my_id(entry.item_id)。
 # 这与写入侧 set_weapon_rule(wid) 一致(见 shop_item.gd _at_popup_save)。
 static func _resolve_weapon_action(item_data, cfg) -> Dictionary:
-	var weapon_id: String = String(item_data.get("weapon_id"))
 	var tier: int = int(item_data.get("tier"))
 	var min_tier: int = cfg.get_weapon_min_tier()
 
-	# 1. min_tier 硬门槛
+	# 1. min_tier 硬门槛(优先于规则)
 	if min_tier > 0 and tier < min_tier:
 		return {"action": "skip", "reason": "武器 tier=%d < min_tier=%d" % [tier, min_tier]}
 
-	# 2. weapon_rules[weapon_id]
+	var weapon_id: String = str(item_data.get("weapon_id"))
+
+	# 2. 武器自身规则
 	var rule_action: String = cfg.get_weapon_rule(weapon_id)
 	match rule_action:
 		"manual":
@@ -177,28 +191,31 @@ static func _resolve_weapon_action(item_data, cfg) -> Dictionary:
 		"skip":
 			return {"action": "skip", "reason": "weapon_rules[%s]=skip" % weapon_id}
 		"follow_set_rule":
-			pass  # 走 set 规则
-		_:
-			_Logger.warning("未知 weapon_rule action=%s weapon_id=%s, 走 set 规则" % [rule_action, weapon_id], _LOG_NAME)
+			pass  # 查类别规则
 
-	# 3. weapon_category_rules[set.my_id] — 任一 skip 则 skip
+	# 3. 类别规则(遍历所有 set)
+	# 优先级:任一 manual 则 manual(立即返回);任一 skip 则记下;遍历完无 manual 有 skip 则 skip。
 	var sets = item_data.get("sets")
+	var has_skip := false
 	if typeof(sets) == TYPE_ARRAY and not (sets as Array).empty():
-		var hit_skip_set := ""
 		for s in sets:
 			if s == null:
 				continue
-			var set_id: String = String(s.get("my_id"))
+			var set_id: String = str(s.get("my_id"))
 			if set_id == "":
 				continue
 			var set_action: String = cfg.get_weapon_category_rule(set_id)
-			if set_action == "skip":
-				hit_skip_set = set_id
-				break
-		if hit_skip_set != "":
-			return {"action": "skip", "reason": "weapon_category_rules[%s]=skip (武器 %s 命中)" % [hit_skip_set, weapon_id]}
+			match set_action:
+				"manual":
+					return {"action": "manual", "reason": "weapon_category_rules[%s]=manual" % set_id}
+				"skip":
+					has_skip = true
 
-	return {"action": "get", "reason": "武器默认 get (weapon_id=%s tier=%d)" % [weapon_id, tier]}
+	if has_skip:
+		return {"action": "skip", "reason": "weapon_category_rules[某set]=skip"}
+
+	# 4. 默认 manual(未配置)
+	return {"action": "manual", "reason": "武器默认 manual (weapon_id=%s 未配置)" % weapon_id}
 
 # ============================================================================
 # 私有 helpers

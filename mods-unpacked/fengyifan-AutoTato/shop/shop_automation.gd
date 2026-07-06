@@ -49,76 +49,12 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 	var session_has_manual := false
 	var reroll_spent := 0
 
-	# 第一轮
-	round_num += 1
-	var cur_round: Dictionary = _run_one_round(ui_adapter, player_index, turbo, delay)
-	total_purchases += int(cur_round.get("purchases", 0))
-	total_locks += int(cur_round.get("locks", 0))
-	total_skips += int(cur_round.get("skips", 0))
-	total_manuals += int(cur_round.get("manuals", 0))
-	session_has_manual = bool(cur_round.get("has_manual", false))
-
-	# 自动化未开启 → 仅一轮 + 手动单次刷新, 不进入循环
-	# 手动入口(用户按 AutoTato 按钮)绕过了 trigger 层开关, 走到这里。
-	# 护栏: 所有未购买商品都余额不足时跳过 reroll(避免浪费金币刷出仍买不起的商品)。
-	# 复用 _can_reroll 判断(金币/单次价格上限/锁未满), 能刷新则刷新一次后结束。
-	# 刷新后不再跑决策 — 想处理新商品需再按一次按钮(手动节奏)。
-	if not auto_enabled:
-		if _all_unpurchased_insufficient(cur_round):
-			_Logger.info("手动未刷新: 所有未购买商品都余额不足 玩家=%d" % player_index, _LOG_NAME)
-		else:
-			var reroll_check := _can_reroll(ui_adapter, player_index, reroll_spent)
-			if bool(reroll_check.get("ok", false)):
-				if ui_adapter.at_reroll_shop(player_index):
-					reroll_spent += int(reroll_check.get("price", 0))
-					_Logger.info("手动单次刷新 玩家=%d 代价=%d" % [player_index, reroll_spent], _LOG_NAME)
-					if not turbo:
-						ui_adapter.at_wait_before_next_decision()
-			else:
-				_Logger.info("手动未刷新: %s 玩家=%d" % [str(reroll_check.get("reason", "")), player_index], _LOG_NAME)
-		return {
-			"purchases": total_purchases,
-			"locks": total_locks,
-			"skips": total_skips,
-			"manuals": total_manuals,
-			"rounds": round_num,
-			"reroll_spent": reroll_spent,
-			"should_auto_start": false,
-		}
-
-	# 自动化开启 → reroll 循环直到停止条件
+	# 统一 reroll 循环:第一轮与后续轮共用同一套逻辑。
+	# 流程:决策一轮 → 出现手动则 break → 否则判断能否刷新 →
+	#       能刷新则刷新继续,不能刷新则按 auto_start_wave 决定是否进波后 break。
+	var cur_round: Dictionary = {}
+	var should_auto_start := false
 	while true:
-		# 停止条件
-		if _has_manual(cur_round):
-			_Logger.info("停止: 出现 manual", _LOG_NAME)
-			break
-		if _all_unpurchased_insufficient(cur_round):
-			_Logger.info("停止: 所有未购买商品都余额不足", _LOG_NAME)
-			break
-		if not _has_skipped(cur_round):
-			_Logger.info("停止: 无跳过项", _LOG_NAME)
-			break
-
-		# 能否 reroll
-		var reroll_check := _can_reroll(ui_adapter, player_index, reroll_spent)
-		if not bool(reroll_check.get("ok", false)):
-			_Logger.info("停止: 无法 reroll — %s" % str(reroll_check.get("reason", "")), _LOG_NAME)
-			break
-
-		# reroll
-		if not ui_adapter.at_reroll_shop(player_index):
-			_Logger.warning("reroll 执行失败，停止", _LOG_NAME)
-			break
-
-		reroll_spent += int(reroll_check.get("price", 0))
-		_Logger.info("自动刷新 (第 %d 轮) 代价=%d 累计=%d gold=%d budget=%d" % [
-			round_num, int(reroll_check.get("price", 0)), reroll_spent,
-			_Data.get_player_gold(player_index), general["reroll_budget"]
-		], _LOG_NAME)
-
-		if not turbo:
-			ui_adapter.at_wait_before_next_decision()
-
 		round_num += 1
 		cur_round = _run_one_round(ui_adapter, player_index, turbo, delay)
 		total_purchases += int(cur_round.get("purchases", 0))
@@ -128,12 +64,49 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 		if bool(cur_round.get("has_manual", false)):
 			session_has_manual = true
 
-	# 走到这里 auto_enabled 必为 true: 本轮无 manual / locked / skipped 才触发自动进下一波
-	var should_auto_start := (
-		not session_has_manual
-		and not bool(cur_round.get("has_locked", false))
-		and not bool(cur_round.get("has_skipped", false))
-	)
+		# 停止条件:出现手动直接 break(不进波判断)
+		if _has_manual(cur_round):
+			_Logger.info("停止: 出现 manual 玩家=%d" % player_index, _LOG_NAME)
+			break
+
+		# 能否刷新检查:全买不起 / 客观不能 reroll 都算不能刷新。
+		# 全买不起 → reroll 也买不起,浪费钱;
+		# 客观不能 → 金币/预算/全锁死(_can_reroll 内部判断)。
+		var reroll_check := _can_reroll(ui_adapter, player_index, reroll_spent)
+		var cannot_reroll := false
+		var cannot_reason := ""
+		if _all_unpurchased_insufficient(cur_round):
+			cannot_reroll = true
+			cannot_reason = "所有未购买商品都余额不足"
+		elif not bool(reroll_check.get("ok", false)):
+			cannot_reroll = true
+			cannot_reason = str(reroll_check.get("reason", ""))
+
+		if cannot_reroll:
+			# 不能刷新:按 auto_start_wave 配置决定是否进波
+			should_auto_start = bool(general["auto_start_wave"])
+			_Logger.info("停止: 无法刷新(%s) 玩家=%d auto_start=%s" % [
+				cannot_reason, player_index, str(should_auto_start)
+			], _LOG_NAME)
+			break
+
+		# 能刷新:执行刷新
+		if not ui_adapter.at_reroll_shop(player_index):
+			_Logger.warning("reroll 执行失败，停止", _LOG_NAME)
+			break
+
+		reroll_spent += int(reroll_check.get("price", 0))
+		_Logger.info("刷新 (第 %d 轮) 累计=%d gold=%d budget=%d" % [
+			round_num, reroll_spent,
+			_Data.get_player_gold(player_index), general["reroll_budget"]
+		], _LOG_NAME)
+
+		if not turbo:
+			ui_adapter.at_wait_before_next_decision()
+
+		# 自动化开关作为循环退出条件:未开启则只循环一次(第一轮后退出)
+		if not auto_enabled:
+			break
 
 	var summary := {
 		"purchases": total_purchases,

@@ -54,3 +54,16 @@
 - Godot 3.5 文档: https://docs.godotengine.org/en/3.5/ （注意：搜索默认进 4.x，要手改 URL）
 - BrotatoMods GitHub 组织: https://github.com/BrotatoMods
 - Brotato Discord (#modding-help): https://discord.com/invite/j39jE6k
+
+## 4. 架构原则
+
+### 配置默认值由 config 层返回
+
+配置的默认值(包括"未配置时的回退值")统一由 `config/` 层负责返回。外部调用方(decider、shop_automation 等)拿到的永远是最终可用值,不需要考虑空值、未配置、字段缺失等情况。
+
+- ✅ 正确:外部调 `cfg.get_xxx(...)` 直接拿到最终动作/值
+- ❌ 错误:外部自己处理 `if null` / `if 未配置` / `if follow_set_rule` 这类回退
+
+理由:把"数据缺失处理"收拢到 config 层,降低外部复杂度,默认值变更只需改 config 一处。
+
+典型示例:`config.gd` 的 `get_weapon_action(weapon_data)` 内部完成"武器自身规则 → 类别规则 → 默认 manual"的完整回退链,decider 调用它后直接拿到 `{action: "manual"|"skip"}`,不再做任何回退判断。
