@@ -203,6 +203,21 @@ func _at_setup_buttons() -> void:
 		_at_auto_btn.add_font_override("font", btn_font)
 	_at_auto_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_at_auto_btn.connect("pressed", self, "_at_auto_pressed")
+	# E 键 (商店锁定键 ui_select) 图标 - 与 DiscardButton 的 button_y_icon 样式完全一致
+	var auto_icon_script = load("res://ui/hud/ui_input_icon.gd")
+	if auto_icon_script:
+		var aicon := TextureRect.new()
+		aicon.set_script(auto_icon_script)
+		aicon.input_string = "ui_select"
+		aicon.player_index = 0
+		aicon.rect_min_size = Vector2(61, 61)
+		aicon.margin_left = 5.0
+		aicon.margin_top = 2.0
+		aicon.margin_right = 66.0
+		aicon.margin_bottom = 63.0
+		aicon.expand = true
+		aicon.mouse_filter = MOUSE_FILTER_IGNORE
+		_at_auto_btn.add_child(aicon)
 	btn_row.add_child(_at_auto_btn)
 
 	# 3. 手柄焦点邻居
@@ -223,16 +238,14 @@ func show_item(item_data) -> void:
 
 
 func focus() -> void:
-	if _items_container.visible:
-		if _at_auto_btn and _at_auto_btn.visible:
-			_at_auto_btn.call_deferred("grab_focus")
-			return
 	.focus()
 
 
 func _at_grab_default_focus() -> void:
-	if _at_auto_btn and _at_auto_btn.visible:
-		_at_auto_btn.grab_focus()
+	# 焦点交回 TakeButton (vanilla 默认), 不再抢占给 AutoTato 按钮.
+	# AutoTato 按钮改为快捷键触发 (ui_select / E 键), 无需默认焦点.
+	if _take_button and _take_button.visible:
+		_take_button.grab_focus()
 
 
 # ============================================================================
@@ -500,6 +513,14 @@ func _input(event: InputEvent) -> void:
 		if event.is_action_pressed("ui_ban"):
 			_at_rule_pressed()
 			_at_popup_opened_by_gamepad = (event is InputEventJoypadButton)
+		get_tree().set_input_as_handled()
+		return
+
+	# AutoTato 按钮: ui_select (键盘 E / 手柄 X, 即商店锁定键) 触发 chest_action 决策.
+	# 范式与 ui_ban 一致: 卡片激活即可, 不检查焦点 (单卡片场景, 焦点在哪个按钮都该执行).
+	# 只拦截 pressed: 决策是瞬时动作, 无 released 副作用需截断.
+	if event.is_action_pressed("ui_select"):
+		_at_auto_pressed()
 		get_tree().set_input_as_handled()
 		return
 
