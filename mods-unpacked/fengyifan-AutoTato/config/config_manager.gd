@@ -9,8 +9,9 @@ extends Reference
 #
 # 版本策略:
 #   新配置层从 v1 重新开始。version 不匹配时不做旧 Bridge 配置字段级迁移,
-#   直接使用默认配置作为基座。旧路径 user://AutoTato/session_config.json 不在
-#   本层隐式导入; 如需导入旧配置, 后续单独设计迁移器。
+#   直接使用默认配置作为基座。旧路径 user://AutoTato/session_config.json 的
+#   一次性位置迁移由 config/migration/ 调度器负责 (load_config 入口先于读取执行);
+#   字段级补缺由 _merge_with_defaults 递归完成。
 #
 # 写入策略:
 #   先写 config.json.tmp, 关闭文件后再 rename 到 config.json。读者要么看到旧的
@@ -19,6 +20,7 @@ extends Reference
 
 const _Logger = preload("res://mods-unpacked/fengyifan-AutoTato/utils/logger.gd")
 const _IO = preload("res://mods-unpacked/fengyifan-AutoTato/utils/io.gd")
+const _Migrator = preload("res://mods-unpacked/fengyifan-AutoTato/config/migration/migrator.gd")
 
 const _LOG_NAME := "ConfigManager"
 
@@ -49,6 +51,10 @@ static func tmp_config_path() -> String:
 static func load_config(default_config: Dictionary) -> Dictionary:
 	var path := config_path()
 	var file := File.new()
+
+	# 迁移: 位置迁移 (session_config -> config) + 版本迁移链 (v1->v2->...)
+	# 必须在 file_exists 之前, 位置迁移可能产生新文件供后续读取。
+	_Migrator.run(path)
 
 	if not file.file_exists(path):
 		_Logger.info("配置文件不存在, 使用默认配置: %s" % path, _LOG_NAME)
