@@ -24,6 +24,13 @@ func install_script_extensions() -> void:
 	ModLoaderMod.install_script_extension(
 		"res://mods-unpacked/fengyifan-AutoTato/extensions/ingame_main_menu.gd"
 	)
+	# 箱子选择页面: 规则弹窗、AutoTato 按钮、箱子自动决策
+	ModLoaderMod.install_script_extension(
+		"res://mods-unpacked/fengyifan-AutoTato/extensions/upgrades_ui_player_container.gd"
+	)
+	ModLoaderMod.install_script_extension(
+		"res://mods-unpacked/fengyifan-AutoTato/extensions/upgrades_ui.gd"
+	)
 	# 升级面板、升级容器等旧扩展暂不迁移,
 	# 避免旧运行路径污染新商店链路
 
