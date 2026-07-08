@@ -1,7 +1,7 @@
 {
     "name": "AutoTato",
     "namespace": "fengyifan",
-    "version_number": "1.1.3",
+    "version_number": "2.0.0",
     "description": "商店/升级/箱子自动决策 + 内置配置面板。支持属性阈值限制、武器类别规则、中英双语。 / Automates shop, upgrade, and chest decisions with an in-game config panel. Stat thresholds, weapon category rules, zh-Hans-CN & EN.",
     "website_url": "https://github.com/feng-yifan/brotato-mod",
     "dependencies": [],

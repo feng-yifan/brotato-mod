@@ -45,7 +45,7 @@ const TAB_TRANSLATION_KEYS := {
 
 
 func _ready() -> void:
-	_title_label.text = tr("AUTOTATO_PANEL_TITLE")
+	_title_label.text = tr("AUTOTATO_PANEL_TITLE") + _get_version_suffix()
 	# 设置每个 Tab 的多语言标题
 	for i in _tabs.get_child_count():
 		var child = _tabs.get_child(i)
@@ -57,6 +57,19 @@ func _ready() -> void:
 	_tabs.connect("tab_changed", self, "_on_tab_changed")
 	_apply_vanilla_theme()
 	hide()  # 默认隐, 由 hook 显式 show
+
+
+# 标题版本号后缀: 从 ModLoader 读取本 mod manifest 的 version_number,
+# 拼成 " (vX.X.X)" 形式. 取不到时返回空串, 标题退化为纯翻译文本.
+const _MOD_ID := "fengyifan-AutoTato"
+func _get_version_suffix() -> String:
+	var mod_data = ModLoaderMod.get_mod_data(_MOD_ID)
+	if mod_data == null or mod_data.manifest == null:
+		return ""
+	var ver: String = mod_data.manifest.version_number
+	if ver.empty():
+		return ""
+	return " (v" + ver + ")"
 
 
 func _notification(what: int) -> void:
