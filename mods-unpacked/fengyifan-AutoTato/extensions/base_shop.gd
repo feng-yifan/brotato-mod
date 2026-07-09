@@ -444,13 +444,16 @@ func _at_chain_process_current_entry() -> void:
 	if not _at_chain_guard():
 		return
 	var pi: int = _at_chain_player_index
-	# 跳过失效 entry, 找到下一个可用 entry
+	# 同步连续处理 entry, 直到遇到需要 UI 停顿的动作 (purchase/lock) 才延迟 return。
+	# process_one_entry 对失效 entry / manual / skip 返回 false (无 UI 动作),
+	# 这些 entry 在同一帧内完成决策+记账后直接跳过, 不起 Timer 延迟。
+	# 故"全 manual"等无 purchase/lock 的轮次会同步跑完 while, 瞬时进入 _at_chain_end_round。
 	while _at_chain_entry_idx < _at_chain_entries.size():
 		var entry = _at_chain_entries[_at_chain_entry_idx]
 		_at_chain_entry_idx += 1
 		var performed: bool = _ShopAutomation.process_one_entry(self, pi, entry, _at_chain_rd)
 		if performed:
-			# 动作后延迟 0.3s 让 UI 渲染可见, 然后处理下一个 entry
+			# purchase/lock 后延迟 0.3s 让 UI 渲染可见, 然后处理下一个 entry
 			_at_chain_advance()
 			return
 	# 本轮 entry 耗尽 -> 进入轮结束判断

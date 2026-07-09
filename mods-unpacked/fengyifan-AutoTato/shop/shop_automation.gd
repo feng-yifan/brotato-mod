@@ -146,7 +146,10 @@ static func new_round_state() -> Dictionary:
 		"actions": [],
 	}
 
-# 决策+执行单个 entry, 累计进 rd。返回是否执行了动作 (用于链决定是否延迟)。
+# 决策+执行单个 entry, 累计进 rd。返回是否执行了需要 UI 停顿的动作 (purchase/lock)。
+# manual/skip 返回 false: 无 UI 动作, 链 while 循环同步连续处理下一个, 不延迟。
+# 无论返回值如何, rd 记账 (actions/manuals/has_manual/...) 在返回前已完成。
+# 注意: turbo 同步路径 (_run_one_round) 忽略返回值, 本改动只影响非 turbo Timer 链。
 static func process_one_entry(ui_adapter, player_index: int, entry, rd: Dictionary) -> bool:
 	var shop_item = entry.get("shop_item")
 	if not _Data.is_shop_item_active(shop_item):
@@ -176,19 +179,27 @@ static func process_one_entry(ui_adapter, player_index: int, entry, rd: Dictiona
 	})
 
 	# 统计(用执行结果,不是决策意图)
+	# 返回值语义: 是否执行了需要 UI 停顿的动作 (purchase/lock)。
+	#   - purchase/lock: true  -> 链起 0.3s Timer 让 UI 渲染可见 (扣币/物品消失/锁框亮起)
+	#   - manual/skip:   false -> 无 UI 动作, 链 while 循环同步连续处理下一个 entry, 不延迟
+	# 统计 (rd 记账) 在返回前已完成, 与返回值无关, 故 manual/skip 仍被 has_manual/
+	# actions[] 完整记录, decide_round_outcome 的停止条件不受影响。
 	match executed:
 		_ExecuteResult.RESULT_PURCHASED:
 			rd["purchases"] += 1
+			return true
 		_ExecuteResult.RESULT_LOCKED:
 			rd["locks"] += 1
 			rd["has_locked"] = true
+			return true
 		_ExecuteResult.RESULT_MANUAL:
 			rd["manuals"] += 1
 			rd["has_manual"] = true
+			return false
 		_:
 			rd["skips"] += 1
 			rd["has_skipped"] = true
-	return true
+			return false
 
 # 一轮结束后判断: 停止 / reroll / 进波。返回决策结果供链驱动下一步。
 # 返回字典:
