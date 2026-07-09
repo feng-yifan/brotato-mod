@@ -4,8 +4,8 @@ extends Reference
 # AutoTato — ShopAutomation
 # ----------------------------------------------------------------------------
 # 商店自动化流程编排。
-# 统一入口 run_shop_decision() 先执行一轮决策，然后根据
-# 商店自动化开关决定是否继续自动 reroll。
+# turbo 同步入口 run_shop_decision_sync() 一口气跑完决策+reroll 循环。
+# 非 turbo 由 base_shop Timer 链逐步调用下面的原子方法。
 #
 # 数据流:
 #   shop_data_reader → entry
@@ -27,19 +27,18 @@ const _LOG_NAME := "ShopAutomation"
 # 公开 API
 # ============================================================================
 
-# 商店决策唯一入口。
-# ui_adapter: base_shop 实例，需实现 at_execute_action() / at_reroll_shop() / at_wait_before_next_decision()
-# 自动化开启 → 执行一轮后进入 reroll 循环; 关闭 → 仅执行一轮。
-static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
+# 商店决策同步入口 (turbo 急速路径)。
+# 一口气跑完 while+for 嵌套循环并返回 summary, 无延迟。turbo 模式专用。
+# 非 turbo 路径由 base_shop 的 Timer 链驱动, 逐步调用下面的原子方法。
+# ui_adapter: base_shop 实例，需实现 at_execute_action() / at_reroll_shop()
+static func run_shop_decision_sync(ui_adapter, player_index: int) -> Dictionary:
 	var cfg = _Config.get_instance()
 	if cfg == null:
 		_Logger.warning("Config 未初始化，跳过商店决策", _LOG_NAME)
 		return _empty_summary()
 
 	var auto_enabled: bool = cfg.is_shop_automation_enabled()
-	var turbo: bool = cfg.is_turbo_mode()
 	var general: Dictionary = cfg.get_general()
-	var delay: float = general["decision_step_delay"]
 
 	var round_num := 0
 	var total_purchases := 0
@@ -56,7 +55,7 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 	var should_auto_start := false
 	while true:
 		round_num += 1
-		cur_round = _run_one_round(ui_adapter, player_index, turbo, delay)
+		cur_round = _run_one_round(ui_adapter, player_index)
 		total_purchases += int(cur_round.get("purchases", 0))
 		total_locks += int(cur_round.get("locks", 0))
 		total_skips += int(cur_round.get("skips", 0))
@@ -101,9 +100,6 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 			_Data.get_player_gold(player_index), general["reroll_budget"]
 		], _LOG_NAME)
 
-		if not turbo:
-			ui_adapter.at_wait_before_next_decision()
-
 		# 自动化开关作为循环退出条件:未开启则只循环一次(第一轮后退出)
 		if not auto_enabled:
 			break
@@ -127,14 +123,19 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 
 
 # ============================================================================
-# 单轮执行
+# 单步原子 API (供 base_shop Timer 链逐步调用, 非 turbo 路径)
+# ----------------------------------------------------------------------------
+# shop_automation 只管"做什么" (决策+执行+判断), base_shop 管"何时做" (Timer 调度)。
+# 链状态 (游标/累计统计) 由 base_shop 持有, 通过 rd 字典在步间传递。
 # ============================================================================
 
-# 运行一轮: 逐 entry 决策 → 即时执行 → 汇总
-static func _run_one_round(ui_adapter, player_index: int, turbo: bool, delay: float) -> Dictionary:
-	var entries: Array = _Data.get_shop_entries(ui_adapter, player_index)
+# 读取本轮商店 entries。reroll 后节点重建, 每轮开始必须重新读。
+static func get_shop_entries(ui_adapter, player_index: int) -> Array:
+	return _Data.get_shop_entries(ui_adapter, player_index)
 
-	var rd := {
+# 创建一轮统计字典 (链每轮开始时调用)。
+static func new_round_state() -> Dictionary:
+	return {
 		"purchases": 0,
 		"locks": 0,
 		"skips": 0,
@@ -145,57 +146,122 @@ static func _run_one_round(ui_adapter, player_index: int, turbo: bool, delay: fl
 		"actions": [],
 	}
 
-	var performed_action := false
+# 决策+执行单个 entry, 累计进 rd。返回是否执行了动作 (用于链决定是否延迟)。
+static func process_one_entry(ui_adapter, player_index: int, entry, rd: Dictionary) -> bool:
+	var shop_item = entry.get("shop_item")
+	if not _Data.is_shop_item_active(shop_item):
+		return false
+
+	# 决策(纯 intent,不含余额事实)
+	var decision: Dictionary = _ItemDecider.decide_shop_entry(entry, player_index)
+	# IntentResult.make 保证 intent 字段必然存在,直接索引信任契约 -
+	# 字段缺失即决策器违约,应报错暴露。
+	var intent: String = String(decision["intent"])
+
+	# 即时执行 -> 消费执行结果
+	var executed: String = ui_adapter.at_execute_action(intent, shop_item, player_index)
+
+	# 重读 currency/price 自算 is_affordable(currency >= price),与决策正交,
+	# 用于 reroll 停止条件。在执行之后读,反映循环中前序 purchase 扣减后的最新余额。
+	var price: int = _Data.get_item_price(shop_item)
+	var currency: int = _Data.get_player_currency(player_index)
+	var is_affordable: bool = currency >= price
+
+	# 保存用于 reroll 停止条件判断(action 记录 = 执行结果 + 自算事实)
+	rd["actions"].append({
+		"intent": intent,
+		"is_affordable": is_affordable,
+		"executed": executed,
+		"shop_item": shop_item,
+	})
+
+	# 统计(用执行结果,不是决策意图)
+	match executed:
+		_ExecuteResult.RESULT_PURCHASED:
+			rd["purchases"] += 1
+		_ExecuteResult.RESULT_LOCKED:
+			rd["locks"] += 1
+			rd["has_locked"] = true
+		_ExecuteResult.RESULT_MANUAL:
+			rd["manuals"] += 1
+			rd["has_manual"] = true
+		_:
+			rd["skips"] += 1
+			rd["has_skipped"] = true
+	return true
+
+# 一轮结束后判断: 停止 / reroll / 进波。返回决策结果供链驱动下一步。
+# 返回字典:
+#   action: "stop_manual" | "stop_no_reroll" | "reroll"
+#   stop_manual: 出现 manual, 留待玩家手动, 不进波
+#   stop_no_reroll: 不能 reroll (全买不起/金币不足/预算超/全锁死), 按 auto_start 决定进波
+#   reroll: 可刷新, 链执行 reroll 后延迟, 再据 auto_enabled 决定进下一轮或停
+#   reroll_price: action=reroll 时的本次价格
+#   should_auto_start: action=stop_no_reroll 时是否应进波
+#   reason: 停止原因 (日志用)
+static func decide_round_outcome(ui_adapter, player_index: int, rd: Dictionary, reroll_spent: int, general: Dictionary) -> Dictionary:
+	# 停止条件:出现手动直接停(不进波判断)
+	if _has_manual(rd):
+		_Logger.info("停止: 出现 manual 玩家=%d" % player_index, _LOG_NAME)
+		return {"action": "stop_manual"}
+
+	# 能否刷新检查:全买不起 / 客观不能 reroll 都算不能刷新。
+	var reroll_check := _can_reroll(ui_adapter, player_index, reroll_spent)
+	var cannot_reroll := false
+	var cannot_reason := ""
+	if _all_unpurchased_insufficient(rd):
+		cannot_reroll = true
+		cannot_reason = "所有未购买商品都余额不足"
+	elif not bool(reroll_check.get("ok", false)):
+		cannot_reroll = true
+		cannot_reason = str(reroll_check.get("reason", ""))
+
+	if cannot_reroll:
+		var should_auto_start: bool = bool(general["auto_start_wave"])
+		_Logger.info("停止: 无法刷新(%s) 玩家=%d auto_start=%s" % [
+			cannot_reason, player_index, str(should_auto_start)
+		], _LOG_NAME)
+		return {"action": "stop_no_reroll", "should_auto_start": should_auto_start, "reason": cannot_reason}
+
+	# 能刷新: 无论自动化开关与否都执行一次 reroll (手动触发时含一次刷新,
+	# 让玩家看到刷新后的新候选)。是否进下一轮由链在 reroll 后据 auto_enabled 判断。
+	return {"action": "reroll", "reroll_price": int(reroll_check.get("price", 0))}
+
+# 执行 reroll。返回是否成功 (失败则链停止)。
+static func execute_reroll(ui_adapter, player_index: int) -> bool:
+	return ui_adapter.at_reroll_shop(player_index, true)
+
+# 构造会话 summary (链结束时调用)。
+static func build_summary(purchases: int, locks: int, skips: int, manuals: int, rounds: int, reroll_spent: int, should_auto_start: bool, has_manual_pending: bool) -> Dictionary:
+	_Logger.info("会话结束: 购买=%d 锁定=%d 跳过=%d 手动=%d 轮数=%d auto_start=%s" % [
+		purchases, locks, skips, manuals, rounds, str(should_auto_start)
+	], _LOG_NAME)
+	return {
+		"purchases": purchases,
+		"locks": locks,
+		"skips": skips,
+		"manuals": manuals,
+		"rounds": rounds,
+		"reroll_spent": reroll_spent,
+		"should_auto_start": should_auto_start,
+		"has_manual_pending": has_manual_pending,
+	}
+
+
+# ============================================================================
+# 单轮执行 (turbo 同步路径专用)
+# ============================================================================
+
+# 运行一轮 (turbo 同步路径): 逐 entry 决策+执行, 复用 process_one_entry。
+# turbo 无延迟, for 循环一口气跑完。
+static func _run_one_round(ui_adapter, player_index: int) -> Dictionary:
+	var entries: Array = _Data.get_shop_entries(ui_adapter, player_index)
+	var rd := new_round_state()
 
 	for entry in entries:
-		var shop_item = entry.get("shop_item")
-		if not _Data.is_shop_item_active(shop_item):
-			continue
+		process_one_entry(ui_adapter, player_index, entry, rd)
 
-		# 决策(纯 intent,不含余额事实)
-		var decision: Dictionary = _ItemDecider.decide_shop_entry(entry, player_index)
-		# IntentResult.make 保证 intent 字段必然存在,直接索引信任契约 —
-		# 字段缺失即决策器违约,应报错暴露。
-		var intent: String = String(decision["intent"])
-
-		# 即时执行 → 消费执行结果
-		var executed: String = ui_adapter.at_execute_action(intent, shop_item, player_index)
-
-		# 重读 currency/price 自算 is_affordable(currency >= price),与决策正交,
-		# 用于 reroll 停止条件。在执行之后读,反映循环中前序 purchase 扣减后的最新余额。
-		# 接受两次 _Data 调用(decider 内部已读一次)以保持职责纯净。
-		var price: int = _Data.get_item_price(shop_item)
-		var currency: int = _Data.get_player_currency(player_index)
-		var is_affordable: bool = currency >= price
-
-		# 保存用于 reroll 停止条件判断(action 记录 = 执行结果 + 自算事实)
-		rd["actions"].append({
-			"intent": intent,
-			"is_affordable": is_affordable,
-			"executed": executed,
-			"shop_item": shop_item,
-		})
-		performed_action = true
-
-		# 统计(用执行结果,不是决策意图)
-		match executed:
-			_ExecuteResult.RESULT_PURCHASED:
-				rd["purchases"] += 1
-			_ExecuteResult.RESULT_LOCKED:
-				rd["locks"] += 1
-				rd["has_locked"] = true
-			_ExecuteResult.RESULT_MANUAL:
-				rd["manuals"] += 1
-				rd["has_manual"] = true
-			_:
-				rd["skips"] += 1
-				rd["has_skipped"] = true
-
-		# 非急速模式: 动作后延迟，让 UI 渲染可见
-		if performed_action and not turbo and delay > 0.0:
-			ui_adapter.at_wait_before_next_decision()
-
-	_Logger.info("轮结束 entries=%d | 买=%d 锁=%d 跳=%d 手=%d | has_manual=%s has_locked=%s has_skipped=%s" % [
+	_Logger.info("轮结束 entries=%d | 买=%d 锁=%d 跳过=%d 手动=%d | has_manual=%s has_locked=%s has_skipped=%s" % [
 		entries.size(), rd["purchases"], rd["locks"], rd["skips"], rd["manuals"],
 		rd["has_manual"], rd["has_locked"], rd["has_skipped"]
 	], _LOG_NAME)

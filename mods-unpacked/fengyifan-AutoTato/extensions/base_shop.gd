@@ -29,6 +29,40 @@ var _at_is_processing := false
 # pending 推进 Timer
 var _at_pending_advance: Timer = null
 
+# ============================================================================
+# Timer 链状态 (非 turbo 步进延迟)
+# ----------------------------------------------------------------------------
+# 非 turbo 模式下, 商店决策不一口气同步跑完, 而是用 Timer 链逐步驱动:
+#   决策+执行单 entry -> 调度 delay -> 下一个 entry -> 本轮结束判断 ->
+#   reroll -> 调度 delay -> 下一轮 -> stop 收尾。
+# Timer 默认 PAUSE_MODE_STOP, ESC 暂停时链自然冻结 (不计时/不回调),
+# 恢复后从中断处继续。链状态全在下面的字段里, 无协程 yield 卡死风险。
+# 临界区标志 _at_is_processing 在链期间保持 true, reroll 拦截等语义不变。
+# ============================================================================
+
+# 链是否运行中
+var _at_chain_active := false
+# 当前链服务的玩家
+var _at_chain_player_index := -1
+# cfg 缓存 (链结束时收尾要用)
+var _at_chain_cfg = null
+# 当前 pending 的链步 Timer
+var _at_chain_timer: Timer = null
+# 当前轮的 entries 缓存 (reroll 后重新读)
+var _at_chain_entries: Array = []
+# 当前轮游标: 下一个待处理的 entry 索引
+var _at_chain_entry_idx := 0
+# 当前轮统计字典 (new_round_state 产生)
+var _at_chain_rd: Dictionary = {}
+# 会话累计统计
+var _at_chain_totals := {
+	"purchases": 0, "locks": 0, "skips": 0, "manuals": 0, "rounds": 0, "reroll_spent": 0,
+}
+# 本会话是否出现过 manual 决策
+var _at_chain_session_has_manual := false
+# 是否应进波 (stop_no_reroll 时由 decide_round_outcome 设定)
+var _at_chain_should_auto_start := false
+
 # AutoTato 按钮引用
 var _at_continue_btn: Button = null
 
@@ -336,7 +370,20 @@ func _at_run_shop_decision(cfg, player_index: int) -> void:
 	# 进入自动化临界区: 禁用 reroll + 决策按钮 (防鼠标/手柄点击干扰)
 	_at_set_buttons_disabled(true)
 	_at_was_locked = true
-	var summary: Dictionary = _ShopAutomation.run_shop_decision(self, player_index)
+
+	var general: Dictionary = cfg.get_general()
+	var delay: float = general["decision_step_delay"]
+	if cfg.is_turbo_mode() or delay <= 0.0:
+		# turbo 或 delay=0: 同步一口气跑完, 无延迟 (delay=0 时链会同步递归, 退化同步更安全)
+		var summary: Dictionary = _ShopAutomation.run_shop_decision_sync(self, player_index)
+		_at_finalize_shop_decision(cfg, player_index, summary)
+	else:
+		# 非 turbo 且 delay>0: 启动 Timer 链, 逐步决策+执行, 每步间延迟让 UI 渲染可见
+		_at_chain_start(cfg, player_index)
+
+# 收尾: 解除临界区 + 据 summary 切 Y/F 归属 + 按 auto_start 决定进波。
+# turbo 同步路径与 Timer 链结束路径共用此方法。
+func _at_finalize_shop_decision(cfg, player_index: int, summary: Dictionary) -> void:
 	_at_is_processing = false
 	# 退出临界区: 重新评估锁定状态 (弹窗可能仍开着), 据此恢复按钮
 	_at_update_lock_state()
@@ -348,6 +395,221 @@ func _at_run_shop_decision(cfg, player_index: int) -> void:
 
 	if bool(summary.get("should_auto_start", false)):
 		_at_maybe_start_next_wave(cfg, player_index)
+
+# ============================================================================
+# Timer 链 - 非 turbo 步进延迟
+# ----------------------------------------------------------------------------
+# 把同步 while+for 循环展开为 Timer 链状态机:
+#   _at_chain_start -> _at_chain_begin_round -> 处理 entry -> _at_chain_advance(延迟)
+#                       -> _at_chain_step -> 下一个 entry / _at_chain_end_round
+#   _at_chain_end_round: manual/不能reroll -> _at_chain_finish; reroll -> 延迟进下一轮
+# 链状态在 _at_chain_* 字段里, Timer 默认 PAUSE_MODE_STOP, ESC 暂停即冻结。
+# ============================================================================
+
+# 链启动: 初始化会话累计, 进入第一轮。
+func _at_chain_start(cfg, player_index: int) -> void:
+	_at_chain_active = true
+	_at_chain_player_index = player_index
+	_at_chain_cfg = cfg
+	_at_chain_timer = null
+	_at_chain_totals = {
+		"purchases": 0, "locks": 0, "skips": 0, "manuals": 0, "rounds": 0, "reroll_spent": 0,
+	}
+	_at_chain_session_has_manual = false
+	_at_chain_should_auto_start = false
+	_at_chain_begin_round()
+
+# 开始一轮: 轮数+1, 重读 entries (reroll 后节点重建), 重置游标, 处理第一个 entry。
+func _at_chain_begin_round() -> void:
+	if not _at_chain_guard():
+		return
+	_at_chain_totals["rounds"] += 1
+	var pi: int = _at_chain_player_index
+	_at_chain_entries = _ShopAutomation.get_shop_entries(self, pi)
+	_at_chain_entry_idx = 0
+	_at_chain_rd = _ShopAutomation.new_round_state()
+	_Logger.info("链: 开始第 %d 轮 entries=%d 玩家=%d" % [
+		_at_chain_totals["rounds"], _at_chain_entries.size(), pi
+	], _LOG_NAME)
+	_at_chain_process_current_entry()
+
+# 处理当前游标处的 entry, 然后推进游标并按需延迟。
+func _at_chain_process_current_entry() -> void:
+	if not _at_chain_guard():
+		return
+	var pi: int = _at_chain_player_index
+	# 跳过失效 entry, 找到下一个可用 entry
+	while _at_chain_entry_idx < _at_chain_entries.size():
+		var entry = _at_chain_entries[_at_chain_entry_idx]
+		_at_chain_entry_idx += 1
+		var performed: bool = _ShopAutomation.process_one_entry(self, pi, entry, _at_chain_rd)
+		if performed:
+			# 动作后延迟 0.3s 让 UI 渲染可见, 然后处理下一个 entry
+			_at_chain_advance()
+			return
+	# 本轮 entry 耗尽 -> 进入轮结束判断
+	_at_chain_end_round()
+
+# 调度一个链步延迟, 到期回调 _at_chain_step。
+# 专用调度器, 不与 _at_schedule_advance (延迟进波单次调度) 共用, 避免覆盖语义切断链。
+func _at_chain_advance() -> void:
+	if not _at_chain_guard():
+		return
+	var delay: float = _at_chain_cfg.get_general()["decision_step_delay"]
+	if delay <= 0.0:
+		# 无延迟直接进下一步 (仍走 _at_chain_step 保持链状态一致)
+		_at_chain_step()
+		return
+	if _at_chain_timer != null and is_instance_valid(_at_chain_timer):
+		_at_chain_timer.stop()
+		_at_chain_timer.queue_free()
+	var t = Timer.new()
+	t.one_shot = true
+	t.wait_time = delay
+	t.connect("timeout", self, "_at_chain_step", [])
+	add_child(t)
+	t.start()
+	_at_chain_timer = t
+
+# Timer 回调: 处理下一个 entry (游标已在前一次 process 时推进)。
+func _at_chain_step() -> void:
+	_at_chain_timer = null
+	if not _at_chain_guard():
+		return
+	_at_chain_process_current_entry()
+
+# 一轮结束判断: manual/不能 reroll -> 收尾; reroll -> 执行刷新后延迟进下一轮。
+func _at_chain_end_round() -> void:
+	if not _at_chain_guard():
+		return
+	var pi: int = _at_chain_player_index
+	# 累计本轮统计进会话总计
+	_at_chain_totals["purchases"] += int(_at_chain_rd.get("purchases", 0))
+	_at_chain_totals["locks"] += int(_at_chain_rd.get("locks", 0))
+	_at_chain_totals["skips"] += int(_at_chain_rd.get("skips", 0))
+	_at_chain_totals["manuals"] += int(_at_chain_rd.get("manuals", 0))
+	if bool(_at_chain_rd.get("has_manual", false)):
+		_at_chain_session_has_manual = true
+	_Logger.info("链: 轮结束 entries=%d | 买=%d 锁=%d 跳过=%d 手动=%d" % [
+		_at_chain_entries.size(), _at_chain_rd.get("purchases", 0),
+		_at_chain_rd.get("locks", 0), _at_chain_rd.get("skips", 0), _at_chain_rd.get("manuals", 0)
+	], _LOG_NAME)
+
+	var general: Dictionary = _at_chain_cfg.get_general()
+	var outcome: Dictionary = _ShopAutomation.decide_round_outcome(
+		self, pi, _at_chain_rd, _at_chain_totals["reroll_spent"], general
+	)
+	match outcome.get("action"):
+		"stop_manual":
+			_at_chain_finish()
+		"stop_no_reroll":
+			_at_chain_should_auto_start = bool(outcome.get("should_auto_start", false))
+			_at_chain_finish()
+		"reroll":
+			_at_chain_do_reroll(int(outcome.get("reroll_price", 0)))
+		_:
+			_Logger.warning("链: 未知 outcome action=%s, 收尾" % str(outcome.get("action")), _LOG_NAME)
+			_at_chain_finish()
+
+# 执行 reroll, 成功则延迟, 然后据自动化开关决定进下一轮或收尾。
+# 自动化开 -> 进下一轮; 关 -> 停 (手动触发只推进一轮含一次刷新)。
+func _at_chain_do_reroll(price: int) -> void:
+	if not _at_chain_guard():
+		return
+	var pi: int = _at_chain_player_index
+	if not _ShopAutomation.execute_reroll(self, pi):
+		_Logger.warning("链: reroll 执行失败, 收尾", _LOG_NAME)
+		_at_chain_finish()
+		return
+	_at_chain_totals["reroll_spent"] += price
+	_Logger.info("链: 刷新 累计=%d gold=%d" % [
+		_at_chain_totals["reroll_spent"], _Data.get_player_gold(pi)
+	], _LOG_NAME)
+	# reroll 后延迟, 然后判断是否继续
+	_at_chain_advance_after_reroll()
+
+# 调度延迟后判断自动化开关: 开则进下一轮, 关则收尾。
+func _at_chain_advance_after_reroll() -> void:
+	if not _at_chain_guard():
+		return
+	var delay: float = _at_chain_cfg.get_general()["decision_step_delay"]
+	if delay <= 0.0:
+		_at_chain_post_reroll_decide()
+		return
+	if _at_chain_timer != null and is_instance_valid(_at_chain_timer):
+		_at_chain_timer.stop()
+		_at_chain_timer.queue_free()
+	var t = Timer.new()
+	t.one_shot = true
+	t.wait_time = delay
+	t.connect("timeout", self, "_at_chain_post_reroll_decide", [])
+	add_child(t)
+	t.start()
+	_at_chain_timer = t
+
+# reroll 后判断: 自动化开 -> 进下一轮; 关 -> 收尾 (手动触发只推进一轮)。
+func _at_chain_post_reroll_decide() -> void:
+	_at_chain_timer = null
+	if not _at_chain_guard():
+		return
+	if _at_chain_cfg.is_shop_automation_enabled():
+		_at_chain_begin_round()
+	else:
+		_Logger.info("链: 自动化关闭, reroll 后停止 玩家=%d" % _at_chain_player_index, _LOG_NAME)
+		_at_chain_should_auto_start = bool(_at_chain_cfg.get_general()["auto_start_wave"])
+		_at_chain_finish()
+
+# 链结束: 构造 summary, 清理链状态, 调收尾。
+func _at_chain_finish() -> void:
+	var pi: int = _at_chain_player_index
+	var cfg = _at_chain_cfg
+	var summary: Dictionary = _ShopAutomation.build_summary(
+		_at_chain_totals["purchases"], _at_chain_totals["locks"], _at_chain_totals["skips"],
+		_at_chain_totals["manuals"], _at_chain_totals["rounds"], _at_chain_totals["reroll_spent"],
+		_at_chain_should_auto_start, _at_chain_session_has_manual
+	)
+	_at_chain_clear_timer()
+	_at_chain_active = false
+	_at_chain_player_index = -1
+	_at_chain_cfg = null
+	_at_chain_entries = []
+	_at_chain_rd = {}
+	_at_finalize_shop_decision(cfg, pi, summary)
+
+# 链守卫: 节点失效/不在树中/链未激活时安全收尾, 防止状态泄漏。
+# 返回 false 表示已收尾, 调用方应立即 return。
+func _at_chain_guard() -> bool:
+	if not _at_chain_active:
+		return false
+	if not is_inside_tree():
+		_Logger.warning("链: 节点已离开树, 中止收尾", _LOG_NAME)
+		_at_chain_abort()
+		return false
+	return true
+
+# 异常收尾: 不构造完整 summary, 用当前累计 + 空 should_auto_start 兜底。
+func _at_chain_abort() -> void:
+	var pi: int = _at_chain_player_index
+	var cfg = _at_chain_cfg
+	var summary: Dictionary = _ShopAutomation.build_summary(
+		_at_chain_totals["purchases"], _at_chain_totals["locks"], _at_chain_totals["skips"],
+		_at_chain_totals["manuals"], _at_chain_totals["rounds"], _at_chain_totals["reroll_spent"],
+		_at_chain_should_auto_start, _at_chain_session_has_manual
+	)
+	_at_chain_clear_timer()
+	_at_chain_active = false
+	_at_chain_player_index = -1
+	_at_chain_cfg = null
+	_at_chain_entries = []
+	_at_chain_rd = {}
+	if cfg != null and pi >= 0:
+		_at_finalize_shop_decision(cfg, pi, summary)
+
+func _at_chain_clear_timer() -> void:
+	if _at_chain_timer != null and is_instance_valid(_at_chain_timer):
+		_at_chain_timer.stop()
+		_at_chain_timer.queue_free()
+	_at_chain_timer = null
 
 # 探测当前玩家数量 (coop 兼容)
 func _at_get_player_count() -> int:
@@ -425,20 +687,6 @@ func at_reroll_shop(player_index: int, _internal: bool = false) -> bool:
 		return false
 	._on_RerollButton_pressed(player_index)
 	return true
-
-# 非急速模式动作后等待
-func at_wait_before_next_decision() -> void:
-	var cfg = _Config.get_instance()
-	if cfg == null or cfg.is_turbo_mode():
-		return
-	var general: Dictionary = cfg.get_general()
-	var delay: float = general["decision_step_delay"]
-	if delay <= 0.0:
-		return
-	_at_schedule_advance(delay, "_at_noop", [])
-
-func _at_noop() -> void:
-	_at_pending_advance = null
 
 # ============================================================================
 # UI 动作 — 购买
