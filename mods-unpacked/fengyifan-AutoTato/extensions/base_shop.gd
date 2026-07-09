@@ -265,13 +265,19 @@ func _at_on_continue_pressed() -> void:
 # ============================================================================
 # 输入 - 临界区边沿检测
 # ----------------------------------------------------------------------------
-# F/Y (ui_info) 的路由由 reroll_button extension 接管 (那里是 vanilla F 处理
-# 的源头), 本 _input 只负责临界区按钮禁用的边沿检测, 并把非 F 事件转发 vanilla
-# (暂停/ban/select 等)。不在此处理 F, 避免与 reroll_button extension 双重触发。
+# 本 extension 不覆写 _input。Godot 3 虚方法是 multilevel 的: 引擎对 _input /
+# _ready / _process 等会沿继承链自动逐层调用, 子类无法通过"不调 super"阻止
+# 父类执行 (见 ModLoader Wiki "Script Extensions" - 虚方法会被调用两次的陷阱)。
+# 故 vanilla base_shop._input (暂停 / ban / E-X 锁定 / go 按钮等) 由引擎自动
+# 调用一次即可, 无需在此转发。
+#
+# 切勿在此加 `func _input(event): ._input(event)` -- 那会让 vanilla _input 跑
+# 两次, 其中 E/X 锁定逻辑 change_lock_status(not locked) 翻转两次互相抵消,
+# 表现为"按 E/X 锁不上物品"。(reroll_button extension 的 _input 正确地未调
+# super, 见其注释。)
+#
+# 临界区按钮禁用的边沿检测改由 _process 轮询负责 (弹窗开关时机不固定, 可靠)。
 # ============================================================================
-
-func _input(event: InputEvent) -> void:
-	._input(event)
 
 # _process 轮询临界区状态 (弹窗开关时机不固定, 可靠检测)。
 # _at_update_lock_state 有边沿检测, 状态不变时几乎无开销。
@@ -656,15 +662,25 @@ func at_execute_action(intent: String, shop_item, player_index: int) -> String:
 
 # 覆写 vanilla _on_RerollButton_pressed (reroll 按钮 pressed 信号的接收方)。
 # 手动按 F / 鼠标点击 reroll 按钮都触发此方法。
-# 拦截规则 (只拦 F 键 + auto 态, 不拦鼠标点击):
-#   - 自动循环中 (_at_is_processing): 放行 (自动 reroll)
+# 拦截规则:
+#   - 链进行中 (_at_is_processing): 拒绝 (拦截一切 pressed, 见下注)
 #   - 临界区 (弹窗): 拒绝 (防误触)
 #   - F 键 + auto 态 (reroll_button._at_f_key_block_reroll=true): 拒绝 (auto 态 F 跑决策不 reroll)
 #   - 其他 (鼠标点击 / reroll 态 F 键): 放行 vanilla reroll
-# 注: at_reroll_shop 调 .super (_on_RerollButton_pressed), 不经此覆写。
+# 注1: at_reroll_shop 调 .super (_on_RerollButton_pressed), 不经此覆写, 故链内自动
+#       reroll 不受 _at_is_processing 拦截影响。
+# 注2: 链进行中必须拦截 pressed。Script Extension 下 vanilla 父类 _input 会被 Godot
+#       独立调用一次 (emit pressed), 若链进行中放行, 该插队 pressed 会触发真实 reroll,
+#       把链正在处理的商品换掉 (非 turbo Timer 链跨帧时暴露, 同步路径因 is_processing
+#       已归位而侥幸不触发)。链内自动 reroll 走 at_reroll_shop->.super, 不经此分支。
 func _on_RerollButton_pressed(player_index: int) -> void:
 	if _at_is_processing:
-		._on_RerollButton_pressed(player_index)
+		# 链进行中: 拦截一切 pressed (含 vanilla 父类 _input 独立 emit 的插队 pressed)。
+		# 消费 block 标志: 链中按 F 时子类 _input 已设 block, 不消费会残留到下次鼠标
+		# reroll 被误拦截。
+		var rb_proc = _get_reroll_button(player_index)
+		if rb_proc != null and is_instance_valid(rb_proc) and rb_proc.has_method("_at_consume_f_key_block"):
+			rb_proc._at_consume_f_key_block()
 		return
 	if _at_is_input_locked():
 		return
