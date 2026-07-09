@@ -1,0 +1,11 @@
+{
+	"latest": "2.1.0",
+	"2.1.0": {
+		"default": "• Shop AutoTato button now supports Y/F (gamepad Y / keyboard F) shortcut\n• F switches to reroll when manual items are pending, switches back to decision after reroll",
+		"zh": "• 商店 AutoTato 按钮接入 Y/F（手柄 Y / 键盘 F）快捷键\n• 有手动商品时 F 切换到刷新，刷新后切回决策"
+	},
+	"2.0.0": {
+		"default": "• AutoTato button in upgrade UI (4-pick-1)\n• Chest AutoTato button now supports E key shortcut\n• Config migration system (old session_config auto-migrated)\n• Pause menu AutoTato config panel",
+		"zh": "• 升级界面（4 选 1）新增 AutoTato 按钮\n• 箱子 AutoTato 按钮接入 E 键快捷键\n• 配置迁移机制（旧 session_config 自动迁移）\n• 暂停菜单 AutoTato 设置面板"
+	}
+}

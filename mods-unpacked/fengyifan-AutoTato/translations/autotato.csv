@@ -86,3 +86,5 @@ AUTOTATO_RESET_CONFIRM_TITLE,Reset Configuration,重置配置
 AUTOTATO_RESET_CONFIRM_MSG,"Reset all settings to defaults? This cannot be undone.",将所有设置重置为默认值？此操作不可撤销。
 AUTOTATO_CONFIRM,Confirm,确认
 AUTOTATO_UNKNOWN,Unknown,未知
+AUTOTATO_CHANGELOG_TITLE,AutoTato Changelog,AutoTato 更新说明
+AUTOTATO_CHANGELOG_DONT_SHOW,Don't Show Again,不再展示
