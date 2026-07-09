@@ -17,6 +17,10 @@ func install_script_extensions() -> void:
 	ModLoaderMod.install_script_extension(
 		"res://mods-unpacked/fengyifan-AutoTato/extensions/base_shop.gd"
 	)
+	# 接管 reroll 按钮 F/Y (ui_info): 据 AutoTato 状态决定 F 触发决策还是刷新
+	ModLoaderMod.install_script_extension(
+		"res://mods-unpacked/fengyifan-AutoTato/extensions/reroll_button.gd"
+	)
 	ModLoaderMod.install_script_extension(
 		"res://mods-unpacked/fengyifan-AutoTato/extensions/shop_item.gd"
 	)

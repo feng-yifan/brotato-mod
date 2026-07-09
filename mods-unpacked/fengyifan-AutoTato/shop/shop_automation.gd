@@ -90,8 +90,8 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 			], _LOG_NAME)
 			break
 
-		# 能刷新:执行刷新
-		if not ui_adapter.at_reroll_shop(player_index):
+		# 能刷新:执行刷新 (_internal=true: 不绑回 F, 循环结束后由 summary 统一切换)
+		if not ui_adapter.at_reroll_shop(player_index, true):
 			_Logger.warning("reroll 执行失败，停止", _LOG_NAME)
 			break
 
@@ -116,6 +116,9 @@ static func run_shop_decision(ui_adapter, player_index: int) -> Dictionary:
 		"rounds": round_num,
 		"reroll_spent": reroll_spent,
 		"should_auto_start": should_auto_start,
+		# 本会话是否出现过 manual 决策 -> 留待玩家手动处理。
+		# base_shop 据此把 Y/F 快捷键归属在 AutoTato 决策与 reroll 间切换。
+		"has_manual_pending": session_has_manual,
 	}
 	_Logger.info("会话结束: 购买=%d 锁定=%d 跳过=%d 手动=%d 轮数=%d auto_start=%s" % [
 		total_purchases, total_locks, total_skips, total_manuals, round_num, str(should_auto_start)
@@ -276,4 +279,5 @@ static func _empty_summary() -> Dictionary:
 		"rounds": 0,
 		"reroll_spent": 0,
 		"should_auto_start": false,
+		"has_manual_pending": false,
 	}
