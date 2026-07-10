@@ -16,8 +16,15 @@ const _LOG_NAME := "Config"
 const _CONFIG_META_KEY := "fengyifan-autotato-config"
 const _CONFIG_SCRIPT_PATH := "res://mods-unpacked/fengyifan-AutoTato/config/config.gd"
 
+## 当前配置版本
 const SCHEMA_VERSION := 1
 
+## 配置文件默认值
+## 速度 - 上限 - 20
+## 护甲 - 上限 - 10
+## 闪避 - 上限 - 60
+## 生命恢复 - 下限 - 10
+## 暴击概率 - 上限 - 100
 const DEFAULT_THRESHOLDS := {
 	"stat_speed": {"mode": "upper", "value": 20},
 	"stat_armor": {"mode": "upper", "value": 10},
@@ -26,28 +33,35 @@ const DEFAULT_THRESHOLDS := {
 	"stat_crit_chance": {"mode": "upper", "value": 100},
 }
 
+## 设置 - 通用
 const VALID_GENERAL_KEYS := ["min_gold_balance", "item_price_threshold", "reroll_budget",
 	"auto_start_wave", "keep_running", "shop_respect_thresholds", "chest_respect_thresholds",
 	"turbo_mode", "decision_step_delay"]
+## 设置 - 升级
 const VALID_UPGRADE_CONFIG_KEYS := ["min_tier", "quality_first", "ignore_forbid_on_stuck", "respect_thresholds"]
+## 设置 - 武器
 const VALID_WEAPON_CONFIG_KEYS := ["min_tier"]
+## 设置 - 阈值
 const VALID_THRESHOLD_MODES := ["upper", "lower", "unlimited"]
+## 物品商店规则枚举值：人工、拒绝、锁定直到诅咒、仅诅咒、购买
 const VALID_SHOP_ACTIONS := ["manual", "reject", "lock_until_cursed", "cursed_only", "get"]
+## 物品物品箱子规则枚举值：人工、拿取、仅诅咒、拒绝
 const VALID_CHEST_ACTIONS := ["manual", "take", "cursed_only", "reject"]
-# item 规则缺失/字段非法时返回的默认 rule。
-# chest_action 当前无外层消费者,作为未来 chest 重构块的对称预留。
+## 物品规则默认值
 const DEFAULT_ITEM_RULE := {
 	"shop_action": "manual",
 	"chest_action": "manual",
 }
-# 某 stat 未配置阈值时返回的默认阈值。
+# 属性未配置阈值时返回的默认阈值。
 # mode=unlimited 表示无限制(threshold_gate 读到 → 不拒绝),
-# 与"未配置该 stat"行为等价,消费者无需判存在性。
+# 与"未配置该 stat"行为等价，消费者无需判存在性。
 const DEFAULT_THRESHOLD := {
 	"mode": "unlimited",
 	"value": 0,
 }
+## 武器规则枚举值：人工、跳过、使用类别规则
 const VALID_WEAPON_RULE_ACTIONS := ["manual", "skip", "follow_set_rule"]
+## 武器类别规则枚举值：人工、跳过
 const VALID_WEAPON_CATEGORY_ACTIONS := ["manual", "skip"]
 
 var _config: Dictionary = {}
@@ -62,7 +76,6 @@ var _last_error: String = ""
 static func initialize() -> Reference:
 	if Engine.has_meta(_CONFIG_META_KEY):
 		return Engine.get_meta(_CONFIG_META_KEY)
-
 	var instance = ResourceLoader.load(_CONFIG_SCRIPT_PATH).new()
 	Engine.set_meta(_CONFIG_META_KEY, instance)
 	instance.load()
@@ -93,11 +106,11 @@ static func new_pristine() -> Reference:
 # ============================================================================
 
 func _init() -> void:
-	_config = _load_defaults()
+	_config = _get_default_config()
 	_loaded = false
 
 func load() -> void:
-	_config = _ConfigManager.load_config(_load_defaults())
+	_config = _ConfigManager.load_config(_get_default_config())
 	_loaded = true
 	_log("配置已加载 version=%d keys=%d" % [int(_config.get("version", 0)), _config.size()])
 
@@ -116,7 +129,7 @@ func get_last_error() -> String:
 # 默认 schema
 # ============================================================================
 
-func _load_defaults() -> Dictionary:
+func _get_default_config() -> Dictionary:
 	return {
 		"version": SCHEMA_VERSION,
 		"shop_automation_enabled": true,
@@ -360,7 +373,7 @@ func set_upgrade_automation_enabled(val: bool) -> void:
 	_persist()
 
 func reset_to_defaults() -> void:
-	_config = _load_defaults()
+	_config = _get_default_config()
 	_persist()
 	_log("配置已重置为 v%d 默认值" % SCHEMA_VERSION)
 
